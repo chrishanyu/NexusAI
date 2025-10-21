@@ -266,31 +266,31 @@ Add group chat creation with CreateGroupView for multi-selecting participants. C
 
 ---
 
-### **PR #13: Push Notifications - iOS**
-**Branch:** `feature/push-notifications`
+### **PR #13: Push Notifications - Simulator Testing**
+**Branch:** `feature/push-notifications-simulator`
 
-Implement iOS push notifications with Firebase Cloud Messaging. Request notification permissions, register device for notifications, store FCM token in user profile. Handle notification taps to navigate to correct chat. Add AppDelegate for notification delegation.
+Implement iOS push notification handling for simulator testing. Request notification permissions, set up UNUserNotificationCenter delegate to handle notification taps and display. Create sample .apns files for testing different notification scenarios (new messages, group messages). Handle notification payload to navigate to correct conversation.
 
 **Key Files:**
 - `ViewModels/NotificationManager.swift`
 - `Services/NotificationService.swift`
 - `AppDelegate.swift`
 - `NexusApp.swift` (notification handling)
-- `Services/AuthService.swift` (FCM token storage)
+- `.apns` test files (in project root or separate test folder)
+
+**Note:** This implementation focuses on notification handling only. FCM token registration and Cloud Functions are skipped for simulator-only MVP.
 
 ---
 
-### **PR #14: Cloud Functions for Notifications**
-**Branch:** `feature/cloud-functions`
+### **PR #14: Notification Testing Documentation**
+**Branch:** `feature/notification-testing-docs`
 
-Deploy Firebase Cloud Functions to send push notifications. Create function triggered on new messages that fetches recipient FCM tokens and sends notifications. Add error handling and logging. Configure Firebase project for Functions.
+Create comprehensive documentation and test files for push notification testing on simulator. Document how to create and use .apns files, test different notification states (foreground, background, killed), and verify notification navigation works correctly. Add multiple .apns test scenarios.
 
 **Key Files:**
-- `firebase/functions/package.json`
-- `firebase/functions/index.js`
-- `firebase/functions/src/notifications.js`
-- `firebase/functions/src/utils.js`
-- `firebase/firebase.json`
+- `README.md` (add notification testing section)
+- `TestNotifications/` directory with sample .apns files
+- `NOTIFICATION_TESTING.md` (detailed testing guide)
 
 ---
 
@@ -371,7 +371,7 @@ Add typing indicators and read receipts.
 Add online status and group chat functionality.
 
 **Phase 6 - Notifications (PRs 13-14):**
-Implement push notifications with Cloud Functions.
+Implement simulator-based push notification testing with .apns files.
 
 **Phase 7 - Reliability (PR 15):**
 Add offline support and message queuing.
@@ -387,13 +387,16 @@ Error handling, UI polish, and comprehensive testing.
 - PRs 1-8 (Project setup through real-time messaging)
 - PR 10 (Read receipts)
 - PR 12 (Group chat)
-- PR 13-14 (Push notifications)
+- PR 13 (Push notification handling for simulator)
 - PR 15 (Offline support)
 
 **Important but Can Be Simplified:**
 - PR 9 (Typing indicators - nice to have)
 - PR 11 (Presence - can be basic)
+- PR 14 (Notification test documentation - can be minimal)
 - PR 16 (Error handling - can be basic)
 - PR 17 (UI polish - function over form)
 
-**Focus on:** Making messages reliably deliver in real-time, work offline, and sync properly. Everything else is secondary.
+**Focus on:** Making messages reliably deliver in real-time, work offline, and sync properly. Notification handling proves the architecture works. Everything else is secondary.
+
+**Note:** For simulator-only MVP, we skip real FCM/APNs integration and use .apns file testing instead. This can be upgraded to full FCM when deploying to real devices.

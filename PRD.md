@@ -20,16 +20,16 @@
 - ✅ Optimistic UI updates (instant message appearance)
 - ✅ Online/offline status indicators
 - ✅ Message timestamps
-- ✅ User authentication (email/password)
+- ✅ User authentication (Google Sign-In)
 
 ### Group Features
 - ✅ Basic group chat (3+ users)
 - ✅ Message read receipts
-- ✅ Push notifications (foreground minimum)
+- ✅ Push notifications (simulator testing with .apns files)
 
 ### Deployment
-- ✅ Running on local simulator with deployed Firebase backend
-- ✅ TestFlight build (stretch goal for MVP)
+- ✅ Running on iOS simulator with Firebase backend
+- ✅ Push notification testing via simulator (drag-and-drop .apns files)
 
 ---
 
@@ -266,51 +266,39 @@ Firestore.firestore().settings = settings
 
 ---
 
-### 7. Push Notifications (FCM)
+### 7. Push Notifications (Simulator)
 
 **Implementation:**
-1. Request notification permissions on first launch
-2. Store FCM token in user profile
-3. Cloud Function triggered on new message:
+Since the MVP runs on iOS simulator only, push notifications are tested using the simulator's built-in notification testing feature (available since Xcode 11.4+).
 
-```javascript
-exports.sendMessageNotification = functions.firestore
-  .document('conversations/{conversationId}/messages/{messageId}')
-  .onCreate(async (snap, context) => {
-    const message = snap.data();
-    const conversationId = context.params.conversationId;
-    
-    // Get conversation participants
-    const conversationDoc = await admin.firestore()
-      .collection('conversations')
-      .doc(conversationId)
-      .get();
-    
-    const participants = conversationDoc.data().participantIds;
-    const recipientIds = participants.filter(id => id !== message.senderId);
-    
-    // Get FCM tokens
-    const users = await admin.firestore()
-      .collection('users')
-      .where(admin.firestore.FieldPath.documentId(), 'in', recipientIds)
-      .get();
-    
-    const tokens = users.docs.map(doc => doc.data().fcmToken);
-    
-    // Send notification
-    await admin.messaging().sendMulticast({
-      tokens: tokens,
-      notification: {
-        title: message.senderName,
-        body: message.text
-      },
-      data: {
-        conversationId: conversationId,
-        type: 'new_message'
-      }
-    });
-  });
+1. Request notification permissions on first launch
+2. Implement UNUserNotificationCenter delegate methods
+3. Handle notification payloads (conversationId, senderId, message text)
+4. Navigate to correct chat when notification is tapped
+5. Create `.apns` test files for different scenarios
+
+**Testing with .apns Files:**
+Create JSON files with `.apns` extension:
+```json
+{
+  "Simulator Target Bundle": "com.yourname.Nexus",
+  "aps": {
+    "alert": {
+      "title": "New message from John",
+      "body": "Hey, are we still meeting at 3pm?"
+    },
+    "badge": 1,
+    "sound": "default"
+  },
+  "gcm.message_id": "1234567890",
+  "conversationId": "conv_123",
+  "senderId": "user_456"
+}
 ```
+
+Drag the `.apns` file onto the simulator to test notification delivery.
+
+**Note:** Real FCM integration with Cloud Functions and APNs is not implemented for simulator-only MVP. This can be added post-MVP when deploying to real devices.
 
 ---
 
