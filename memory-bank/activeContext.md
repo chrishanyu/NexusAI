@@ -3,8 +3,8 @@
 ## Current Focus
 
 **Sprint:** MVP Foundation  
-**Phase:** PR #2 - Core Models & Constants  
-**Status:** Models created, ready for Services layer
+**Phase:** PR #3 - Firebase Services Layer  
+**Status:** ✅ COMPLETE - All services implemented and building successfully
 
 ## What We're Building Right Now
 
@@ -16,7 +16,7 @@
    - Basic folder structure created
    - Firestore security rules defined
 
-2. ✅ **Core Models (PR #2 - In Progress)**
+2. ✅ **Core Models (PR #2)**
    - `User.swift` - User profile with Firebase Auth integration
    - `Conversation.swift` - Direct and group conversation types
    - `Message.swift` - Message with status tracking
@@ -25,62 +25,54 @@
    - `Constants.swift` - App-wide constants
    - `Date+Extensions.swift` - Smart timestamp formatting
 
-### Currently Staged Changes
-Git shows several model files are staged but also have unstaged modifications:
-- `Conversation.swift` - Modified
-- `Message.swift` - Modified
-- `MessageStatus.swift` - Modified
-- `User.swift` - Modified
-- `TypingIndicator.swift` - New file (untracked)
+3. ✅ **Firebase Services Layer (PR #3 - JUST COMPLETED)**
+   - `FirebaseService.swift` - Firebase singleton with offline persistence (100MB cache)
+   - `AuthService.swift` - Email/password authentication, user profile management
+   - `ConversationService.swift` - Direct/group conversation CRUD, real-time listeners
+   - `MessageService.swift` - Message sending with optimistic UI, status tracking, pagination
+   - `PresenceService.swift` - Online/offline status, typing indicators with auto-expiration
+   - `LocalStorageService.swift` - SwiftData persistence for offline caching
 
-**Action Needed:** Review modifications, commit clean versions
+**Build Status:** ✅ All services compile successfully, no errors
 
 ## Next Immediate Steps
 
-### PR #3: Firebase Services Layer
-**Priority:** High - Foundation for all features
+### PR #4: Authentication Flow
+**Priority:** HIGH - Required for all subsequent features
 
 **Files to Create:**
-1. `Services/FirebaseService.swift`
-   - Firebase initialization
-   - Firestore configuration
-   - Enable offline persistence
-   - Singleton pattern
+1. `ViewModels/AuthViewModel.swift`
+   - Auth state management
+   - Login/signup logic
+   - Error handling
+   - Loading states
 
-2. `Services/AuthService.swift`
-   - Email/password authentication
-   - User profile CRUD
-   - FCM token management
+2. `Views/Auth/LoginView.swift`
+   - Email/password input fields
+   - Login button
+   - Link to SignUpView
+   - Error display
+
+3. `Views/Auth/SignUpView.swift`
+   - Email, password, display name inputs
+   - Sign up button
+   - Input validation
+   - Link to LoginView
+
+4. `Views/Auth/ProfileSetupView.swift`
+   - Display name configuration
+   - Optional profile image
+   - Completion flow
+
+5. Update `NexusAIApp.swift`
    - Auth state listener
-
-3. `Services/ConversationService.swift`
-   - Create conversations (direct and group)
-   - List conversations for user
-   - Update conversation metadata
-   - Real-time conversation listener
-
-4. `Services/MessageService.swift`
-   - Send messages (with optimistic UI)
-   - Listen to messages in conversation
-   - Update message status (delivered, read)
-   - Mark messages as read
-
-5. `Services/PresenceService.swift`
-   - Update online/offline status
-   - Update lastSeen timestamp
-   - Listen to participant presence
-   - Typing indicator management
-
-6. `Services/LocalStorageService.swift`
-   - SwiftData persistence
-   - Cache conversations and messages
-   - Local message queue
+   - Conditional navigation (logged in → conversation list, logged out → login)
 
 **Success Criteria:**
-- All services compile without errors
-- Services handle async/await correctly
-- Error handling for Firebase operations
-- Ready to be called by ViewModels
+- Users can sign up with email/password
+- Users can log in and see conversation list
+- Auth state persists across app restarts
+- Proper error handling for auth failures
 
 ## Recent Decisions
 
@@ -96,28 +88,43 @@ Git shows several model files are staged but also have unstaged modifications:
 3. **Optimistic UI for Messages**
    - Reason: Instant feedback critical for messaging UX
    - Impact: Messages use localId, complex merge logic
+   - Implementation: MessageService has optimistic UI support
 
 4. **Email/Password Auth (Not Google Sign-In)**
    - Reason: Simpler for MVP, faster testing
    - Impact: Can add social auth post-MVP
 
-### Technical Decisions
+### Technical Decisions (PR #3)
 1. **Swift Concurrency (async/await) Over Completion Handlers**
    - Modern, cleaner code
    - All Firebase operations use async/await
+   - ✅ Implemented across all services
 
 2. **Firestore Snapshot Listeners for Real-Time**
    - Built-in real-time updates
    - Auto-cleanup on detach
+   - ✅ Implemented in ConversationService, MessageService, PresenceService
 
 3. **Singleton Services for Global State**
    - FirebaseService, PresenceManager, NotificationManager
    - Other services instantiated for testability
+   - ✅ FirebaseService implemented as singleton
 
 4. **Message Queue Pattern for Offline**
    - Queue messages when offline
    - Flush on reconnection
    - Ensures no message loss
+   - ✅ LocalStorageService with QueuedMessage model
+
+5. **Typing Indicator Auto-Expiration**
+   - Decided: 3-second timeout with Timer
+   - Prevents stale "typing..." indicators
+   - ✅ Implemented in PresenceService
+
+6. **Firestore Offline Cache Size**
+   - Decided: 100MB persistent cache
+   - Balances performance with disk usage
+   - ✅ Configured in FirebaseService
 
 ## Active Challenges
 
@@ -193,17 +200,22 @@ All dependencies available:
 ## Work In Progress
 
 ### Active Branches
-- `main` - Current stable state (models defined)
-- Next: `feature/firebase-services` (PR #3)
+- `feature/firebase-service` - ✅ PR #3 complete, ready to merge
+- Next: `feature/authentication` (PR #4)
 
-### Files Recently Modified
-1. `NexusAI/Models/User.swift` - User model with Firestore integration
-2. `NexusAI/Models/Conversation.swift` - Conversation types and metadata
-3. `NexusAI/Models/Message.swift` - Message structure with status
-4. `NexusAI/Models/MessageStatus.swift` - Status enum
-5. `NexusAI/Models/TypingIndicator.swift` - Typing state (new, untracked)
-6. `NexusAI/Utilities/Constants.swift` - App constants
-7. `NexusAI/Utilities/Extensions/Date+Extensions.swift` - Date formatting
+### Files Recently Created (PR #3)
+1. `NexusAI/Services/FirebaseService.swift` - Firebase singleton, offline persistence
+2. `NexusAI/Services/AuthService.swift` - Authentication and user management
+3. `NexusAI/Services/ConversationService.swift` - Conversation CRUD and listeners
+4. `NexusAI/Services/MessageService.swift` - Message operations and real-time sync
+5. `NexusAI/Services/PresenceService.swift` - Presence and typing indicators
+6. `NexusAI/Services/LocalStorageService.swift` - SwiftData caching and offline queue
+
+### Key Implementation Details
+- **AuthService:** Includes chunked user fetching (max 10 per Firestore 'in' query)
+- **MessageService:** Optimistic UI with localId, pagination support (50 messages/page)
+- **PresenceService:** Typing indicators with 3s auto-expiration using Timer
+- **LocalStorageService:** SwiftData models for cached messages, queued messages, cached conversations
 
 ## Testing Status
 

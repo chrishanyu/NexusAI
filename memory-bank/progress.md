@@ -3,8 +3,8 @@
 ## Overall MVP Status
 
 **Phase:** Foundation Building  
-**Current PR:** #2 - Core Models & Constants  
-**Completion:** ~10% (2/18 PRs complete)  
+**Current PR:** #3 - Firebase Services Layer ✅ COMPLETE  
+**Completion:** ~17% (3/18 PRs complete)  
 **Timeline:** On track for 24-hour MVP sprint
 
 ## Completed Work
@@ -40,9 +40,9 @@
 
 ---
 
-### ✅ PR #2: Core Models & Constants (IN PROGRESS)
-**Status:** ~90% COMPLETE  
-**Branch:** Working directly on main (should create feature branch)
+### ✅ PR #2: Core Models & Constants
+**Status:** COMPLETE  
+**Branch:** Merged to feature/firebase-service
 
 **Completed Items:**
 - [x] Created User model with Firestore integration
@@ -68,39 +68,75 @@
 - Models conform to Identifiable (SwiftUI compatible)
 - Firebase DocumentID integration working
 
-**Remaining Tasks:**
-- [ ] Review and finalize unstaged model changes
-- [ ] Commit clean versions to Git
-- [ ] Test model encoding/decoding with Firestore
+---
+
+### ✅ PR #3: Firebase Services Layer
+**Status:** COMPLETE ✅  
+**Branch:** feature/firebase-service  
+**Completion Date:** October 21, 2025
+
+**Completed Items:**
+- [x] Created FirebaseService singleton with offline persistence
+- [x] Created AuthService for authentication and user management
+- [x] Created ConversationService for conversation CRUD and real-time listeners
+- [x] Created MessageService with optimistic UI support
+- [x] Created PresenceService for online/offline status and typing indicators
+- [x] Created LocalStorageService with SwiftData persistence
+
+**Files Created:**
+- `NexusAI/Services/FirebaseService.swift` - 62 lines, Firebase configuration
+- `NexusAI/Services/AuthService.swift` - 150+ lines, full auth functionality
+- `NexusAI/Services/ConversationService.swift` - 250+ lines, conversation management
+- `NexusAI/Services/MessageService.swift` - 250+ lines, message operations
+- `NexusAI/Services/PresenceService.swift` - 200+ lines, presence & typing
+- `NexusAI/Services/LocalStorageService.swift` - 240+ lines, offline caching
+
+**What Works:**
+- ✅ All services compile without errors
+- ✅ Firebase offline persistence configured (100MB cache)
+- ✅ Async/await pattern throughout
+- ✅ Real-time Firestore listeners implemented
+- ✅ Optimistic UI support with localId
+- ✅ Message pagination (50 messages per page)
+- ✅ Typing indicators with 3s auto-expiration
+- ✅ SwiftData models for offline caching
+- ✅ Chunked user fetching (Firestore 'in' query limitation)
+
+**Key Technical Details:**
+- AuthService includes FCM token management
+- MessageService supports both optimistic and standard message sending
+- PresenceService uses Timer for typing indicator expiration
+- LocalStorageService has 3 SwiftData models (CachedMessage, QueuedMessage, CachedConversation)
+- All error handling uses custom error enums with LocalizedError
 
 ---
 
 ## In Progress
 
-### 🚧 Current Work: Preparing for PR #3
-**Focus:** Services Layer Implementation
+### 🚧 Current Work: PR #4 - Authentication Flow
+**Focus:** Build authentication UI and ViewModels
 
 **Next Files to Create:**
-1. `Services/FirebaseService.swift` - Firebase singleton
-2. `Services/AuthService.swift` - Authentication logic
-3. `Services/ConversationService.swift` - Conversation operations
-4. `Services/MessageService.swift` - Message operations
-5. `Services/PresenceService.swift` - Presence and typing
-6. `Services/LocalStorageService.swift` - SwiftData persistence
+1. `ViewModels/AuthViewModel.swift` - Auth state management
+2. `Views/Auth/LoginView.swift` - Login screen
+3. `Views/Auth/SignUpView.swift` - Registration screen
+4. `Views/Auth/ProfileSetupView.swift` - Profile completion
+5. Update `NexusAIApp.swift` - Auth-based navigation
 
 **Blocked By:** None  
-**Estimated Completion:** Next work session
+**Estimated Completion:** Next work session (2-3 hours)
 
 ---
 
 ## Not Started (Upcoming PRs)
 
-### 📋 PR #3: Firebase Services Layer
+### ✅ PR #3: Firebase Services Layer
 **Priority:** HIGH - Foundation for all features  
 **Dependencies:** PR #2 (Models)  
-**Files:** 6 service files  
+**Status:** ✅ COMPLETE
+**Files Created:** 6 service files (~1,150 total lines)  
 **Complexity:** Medium  
-**Estimated Time:** 2-3 hours
+**Actual Time:** ~3 hours
 
 ### 📋 PR #4: Authentication Flow
 **Priority:** HIGH - Required for testing  
@@ -213,8 +249,8 @@
 
 ### Must-Complete PRs (Core Messaging)
 1. ✅ PR #1: Project Setup
-2. 🚧 PR #2: Models
-3. ⏳ PR #3: Services
+2. ✅ PR #2: Models
+3. ✅ PR #3: Services
 4. ⏳ PR #4: Authentication
 5. ⏳ PR #5: Conversation List
 6. ⏳ PR #6: Chat UI
@@ -226,8 +262,8 @@
 12. ⏳ PR #15: Offline Support
 
 **Total Critical Path:** 12 PRs  
-**Completed:** 1.5/12 (~12%)  
-**Remaining Effort:** ~35-45 hours (aggressive timeline)
+**Completed:** 3/12 (25%)  
+**Remaining Effort:** ~30-40 hours
 
 ### Optional PRs (Can Skip for MVP)
 - PR #9: Typing Indicators (nice to have)
@@ -253,7 +289,16 @@
    - SwiftUI-compatible (Identifiable)
    - Status enums defined (MessageStatus)
 
-3. **Development Environment**
+3. **Services Layer** ⭐ NEW
+   - FirebaseService singleton with offline persistence
+   - AuthService with full email/password authentication
+   - ConversationService with CRUD and real-time listeners
+   - MessageService with optimistic UI and pagination
+   - PresenceService with typing indicators
+   - LocalStorageService with SwiftData caching
+   - All services compile and ready for use
+
+4. **Development Environment**
    - Git repository initialized
    - Firebase project configured
    - Security rules defined (not tested)
@@ -265,67 +310,67 @@
 
 ### ❌ Not Yet Implemented
 1. **Core Messaging**
-   - No message sending/receiving
-   - No real-time sync
-   - No optimistic UI
-   - No offline queue
+   - No message sending/receiving (services ready, need ViewModels/Views)
+   - No real-time sync UI (listeners implemented, need Views)
+   - No optimistic UI display (logic ready, need Views)
+   - No offline queue UI (backend ready, need Views)
 
 2. **User Features**
-   - No authentication
-   - No conversation list
-   - No chat UI
-   - No notifications
+   - No authentication UI (AuthService ready, need Views)
+   - No conversation list (ConversationService ready, need Views)
+   - No chat UI (MessageService ready, need Views)
+   - No notifications (will use .apns files for simulator)
 
-3. **Services Layer**
-   - No Firebase integration
-   - No local storage
-   - No network monitoring
-   - No presence tracking
-
-4. **UI/UX**
+3. **ViewModels & Views**
+   - No ViewModels yet (next: AuthViewModel)
    - No views implemented (except placeholder ContentView)
-   - No ViewModels
    - No navigation flow
    - No user interactions
+
+4. **Integration**
+   - Services not yet connected to UI
+   - No network monitoring utility
+   - No app lifecycle handling
 
 ---
 
 ## Known Issues
 
 ### 🐛 Current Issues
-1. **Git Status Inconsistency**
-   - Issue: Model files staged + unstaged simultaneously
-   - Impact: Unclear what changes are ready to commit
-   - Priority: Medium
-   - Fix: Review diffs, commit clean versions
-
-2. **No Service Layer**
-   - Issue: Models exist but can't be used yet
-   - Impact: Can't test or build features
+1. **No ViewModels or Views**
+   - Issue: Services exist but no UI layer
+   - Impact: Can't interact with app yet
    - Priority: High
-   - Fix: Implement PR #3 immediately
+   - Fix: Implement PR #4 (Authentication) immediately
 
-3. **No Testing Infrastructure**
+2. **No Testing Infrastructure**
    - Issue: No unit tests, UI tests, or integration tests
    - Impact: Can't verify features work
    - Priority: Medium
    - Fix: Add tests incrementally with each PR
 
+3. **No Network Monitoring**
+   - Issue: Services don't detect online/offline state
+   - Impact: Can't trigger offline queue logic
+   - Priority: Medium
+   - Fix: Create NetworkMonitor utility in PR #7 or #15
+
 ### ⚠️ Technical Debt
-1. **Working on main branch**
-   - Should use feature branches per PR
-   - Risk: Harder to rollback changes
-   - Fix: Start using `feature/*` branches
+1. **Using feature branch**
+   - Currently: feature/firebase-service
+   - Should merge to main and create new branch for PR #4
+   - Risk: Branch getting too large
+   - Fix: Merge PR #3, start fresh feature/authentication
 
 2. **No CI/CD**
    - No automated testing or builds
    - Risk: Bugs slip through
    - Fix: Add GitHub Actions or Xcode Cloud (post-MVP)
 
-3. **Minimal error handling**
-   - Models don't validate data
-   - Risk: Runtime crashes
-   - Fix: Add validation in services/ViewModels
+3. **No input validation**
+   - Services don't validate inputs
+   - Risk: Runtime crashes or Firestore errors
+   - Fix: Add validation in ViewModels before calling services
 
 ---
 
@@ -335,7 +380,9 @@
 - [x] Project builds
 - [x] Firebase SDK loads
 - [x] Models compile
-- [ ] Authentication flow
+- [x] Services compile
+- [x] Firebase offline persistence configured
+- [ ] Authentication flow (next: PR #4)
 - [ ] Message sending
 - [ ] Real-time sync
 - [ ] Offline scenarios
@@ -359,14 +406,15 @@
 ## Metrics & Goals
 
 ### Time Tracking
-- **Total Time Spent:** ~2 hours (setup + models)
-- **Remaining Budget:** ~22 hours (for 24-hour MVP)
-- **Burn Rate:** On track
+- **Total Time Spent:** ~5 hours (setup + models + services)
+- **Remaining Budget:** ~19 hours (for 24-hour MVP)
+- **Burn Rate:** On track (17% complete, ~20% time used)
 
 ### Code Metrics
-- **Files Created:** 15 files
-- **Lines of Code:** ~300 LOC (models + utilities)
+- **Files Created:** 21 files
+- **Lines of Code:** ~1,450 LOC (models + services + utilities)
 - **Test Coverage:** 0% (no tests yet)
+- **Service Files:** 6 files, ~1,150 LOC total
 
 ### Feature Completion
 - **MVP Features:** 0/8 working (0%)
@@ -469,9 +517,9 @@
 
 ## Summary
 
-**Current State:** Foundation building, models complete, ready for services layer  
-**Next Action:** Implement PR #3 (Firebase Services)  
-**Timeline:** On track for 24-hour MVP  
+**Current State:** Foundation complete (Models + Services), ready for UI layer  
+**Next Action:** Implement PR #4 (Authentication Flow)  
+**Timeline:** On track for 24-hour MVP (25% complete, ~20% time used)  
 **Blockers:** None  
-**Confidence:** High - architecture solid, clear path forward
+**Confidence:** Very High - services layer solid, clear path to authentication
 

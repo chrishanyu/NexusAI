@@ -8,6 +8,9 @@
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseCore
+import GoogleSignIn
+import UIKit
 
 /// Service for user authentication and profile management
 class AuthService {
@@ -54,6 +57,48 @@ class AuthService {
         return user
     }
     
+    /// Sign in with Google
+    func signInWithGoogle() async throws -> User {
+        // Get the client ID from GoogleService-Info.plist
+        guard let clientID = FirebaseApp.app()?.options.clientID else {
+            throw AuthError.googleSignInFailed("Unable to retrieve Google Client ID")
+        }
+        
+        // Configure Google Sign-In
+        let config = GIDConfiguration(clientID: clientID)
+        GIDSignIn.sharedInstance.configuration = config
+        
+        // Get the root view controller for presenting the sign-in UI
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = windowScene.windows.first?.rootViewController else {
+            throw AuthError.googleSignInFailed("Unable to find root view controller")
+        }
+        
+        // Initiate Google Sign-In flow
+        let signInResult = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
+        let user = signInResult.user
+        
+        // Get ID token and access token
+        guard let idToken = user.idToken?.tokenString else {
+            throw AuthError.googleSignInFailed("Unable to retrieve ID token")
+        }
+        let accessToken = user.accessToken.tokenString
+        
+        // Create Firebase credential from Google tokens
+        let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
+        
+        // Sign in to Firebase with Google credential
+        let authResult = try await auth.signIn(with: credential)
+        
+        // Create or update user profile in Firestore
+        let nexusUser = try await createOrUpdateUserInFirestore(firebaseUser: authResult.user)
+        
+        // Update online status
+        try await updateOnlineStatus(userId: nexusUser.id!, isOnline: true)
+        
+        return nexusUser
+    }
+    
     /// Sign out current user
     func signOut() async throws {
         guard let userId = auth.currentUser?.uid else { return }
@@ -63,6 +108,9 @@ class AuthService {
         
         // Sign out from Firebase Auth
         try auth.signOut()
+        
+        // Sign out from Google Sign-In
+        GIDSignIn.sharedInstance.signOut()
     }
     
     /// Send password reset email
@@ -71,6 +119,63 @@ class AuthService {
     }
     
     // MARK: - User Profile Management
+    
+    /// Create or update user in Firestore from Firebase User
+    private func createOrUpdateUserInFirestore(firebaseUser: FirebaseAuth.User) async throws -> User {
+        // Extract user data from Firebase User
+        let userId = firebaseUser.uid
+        let email = firebaseUser.email ?? ""
+        let displayName = firebaseUser.displayName ?? email.components(separatedBy: "@").first ?? "User"
+        let profileImageUrl = firebaseUser.photoURL?.absoluteString
+        
+        // Retry logic for Firestore operations
+        var lastError: Error?
+        for attempt in 1...2 {
+            do {
+                // Check if user already exists
+                let userDoc = db.collection(Constants.Collections.users).document(userId)
+                let document = try await userDoc.getDocument()
+                
+                if document.exists {
+                    // Update existing user with latest Google data
+                    try await userDoc.updateData([
+                        "email": email,
+                        "displayName": displayName,
+                        "profileImageUrl": profileImageUrl as Any,
+                        "isOnline": true,
+                        "lastSeen": FieldValue.serverTimestamp()
+                    ])
+                    
+                    // Fetch and return updated user
+                    return try await getUserProfile(userId: userId)
+                } else {
+                    // Create new user
+                    let user = User(
+                        id: userId,
+                        googleId: firebaseUser.uid, // For Google Sign-In, googleId is same as uid
+                        email: email,
+                        displayName: displayName,
+                        profileImageUrl: profileImageUrl,
+                        isOnline: true,
+                        lastSeen: Date(),
+                        createdAt: Date()
+                    )
+                    
+                    try await saveUserProfile(user)
+                    return user
+                }
+            } catch {
+                lastError = error
+                if attempt == 1 {
+                    // Wait 1 second before retry
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                }
+            }
+        }
+        
+        // If both attempts failed, throw the last error
+        throw lastError ?? AuthError.firestoreError
+    }
     
     /// Save or update user profile in Firestore
     func saveUserProfile(_ user: User) async throws {
@@ -171,6 +276,9 @@ enum AuthError: LocalizedError {
     case userNotFound
     case invalidCredentials
     case networkError
+    case googleSignInFailed(String)
+    case googleSignInCancelled
+    case firestoreError
     
     var errorDescription: String? {
         switch self {
@@ -182,6 +290,12 @@ enum AuthError: LocalizedError {
             return "Invalid email or password"
         case .networkError:
             return "Network connection error"
+        case .googleSignInFailed(let message):
+            return "Google Sign-In failed: \(message)"
+        case .googleSignInCancelled:
+            return "Sign-in was cancelled. Please try again."
+        case .firestoreError:
+            return "Failed to create profile. Please try signing in again."
         }
     }
 }
