@@ -12,14 +12,80 @@ struct Constants {
 
     // MARK: - Colors
     struct Colors {
+        // Primary colors
         static let primaryBlue = Color(hex: "#007AFF")
-        static let sentMessageBubble = Color(hex: "#007AFF")
-        static let receivedMessageBubble = Color(hex: "#E5E5EA")
         static let background = Color(hex: "#F2F2F7")
+        
+        // Message bubble colors
+        static let sentMessageBubble = Color(hex: "#007AFF")
+        static let sentMessageText = Color.white
+        static let receivedMessageBubble = Color(hex: "#E5E5EA")
+        static let receivedMessageText = Color.black
+        
+        // Status indicator colors
         static let onlineGreen = Color(hex: "#34C759")
         static let offlineGray = Color(hex: "#8E8E93")
+        static let statusSending = Color.gray
+        static let statusSent = Color.gray
+        static let statusDelivered = Color.gray
+        static let statusRead = Color(hex: "#007AFF")
+        static let statusFailed = Color.red
+        
+        // UI element colors
+        static let unreadBadge = Color.red
+        static let offlineBanner = Color(hex: "#FFCC00")
+        static let divider = Color.gray.opacity(0.3)
     }
 
+    // MARK: - Dimensions
+    struct Dimensions {
+        // Message bubbles
+        static let messageBubbleCornerRadius: CGFloat = 16
+        static let messageBubblePaddingVertical: CGFloat = 12
+        static let messageBubblePaddingHorizontal: CGFloat = 16
+        static let messageBubbleMaxWidth: CGFloat = 0.75 // 75% of screen width
+        static let messageBubbleTailSize: CGFloat = 8
+        
+        // Profile images
+        static let profileImageLarge: CGFloat = 100
+        static let profileImageMedium: CGFloat = 50
+        static let profileImageSmall: CGFloat = 44
+        static let profileImageTiny: CGFloat = 30
+        
+        // Status indicators
+        static let onlineStatusDot: CGFloat = 8
+        static let onlineStatusBorder: CGFloat = 2
+        
+        // Input bar
+        static let messageInputHeight: CGFloat = 36
+        static let sendButtonSize: CGFloat = 36
+        static let messageInputMaxLines: Int = 4
+        
+        // Icons
+        static let messageStatusIconSize: CGFloat = 12
+        static let fabButtonSize: CGFloat = 56
+        static let unreadBadgeSize: CGFloat = 20
+        
+        // Spacing
+        static let rowSpacing: CGFloat = 8
+        static let sectionSpacing: CGFloat = 16
+        static let screenPadding: CGFloat = 16
+        
+        // Auto-scroll threshold
+        static let autoScrollThreshold: CGFloat = 100
+    }
+    
+    // MARK: - Animation
+    struct Animation {
+        static let messageSend: Double = 0.2
+        static let messageAppear: Double = 0.3
+        static let bubbleFade: Double = 0.15
+        static let statusUpdate: Double = 0.2
+        static let scrollToBottom: Double = 0.3
+        static let errorDismiss: TimeInterval = 5.0
+        static let typingDots: Double = 0.6
+    }
+    
     // MARK: - Notification Keys
     struct NotificationKeys {
         static let conversationId = "conversationId"

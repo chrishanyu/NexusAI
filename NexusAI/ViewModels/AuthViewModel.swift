@@ -37,9 +37,17 @@ class AuthViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    /// Initialize with AuthService dependency
-    /// - Parameter authService: Service for authentication operations (defaults to AuthService singleton)
-    init(authService: AuthServiceProtocol = AuthService()) {
+    /// Initialize with default AuthService
+    init() {
+        self.authService = AuthService()
+        
+        // Set up auth state listener for session persistence
+        setupAuthStateListener()
+    }
+    
+    /// Initialize with custom AuthService dependency (for testing)
+    /// - Parameter authService: Service for authentication operations
+    init(authService: AuthServiceProtocol) {
         self.authService = authService
         
         // Set up auth state listener for session persistence
@@ -134,7 +142,7 @@ class AuthViewModel: ObservableObject {
             errorMessage = "Invalid user ID. Please try again."
         }
         
-        print("❌ Auth error: \(error.localizedDescription ?? "Unknown error")")
+        print("❌ Auth error: \(error.localizedDescription)")
     }
     
     /// Sign out current user

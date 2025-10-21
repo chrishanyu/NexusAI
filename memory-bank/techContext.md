@@ -8,11 +8,12 @@
 - **Reactive Programming:** Combine
 - **Local Persistence:** SwiftData
 - **Architecture:** MVVM (Model-View-ViewModel)
+- **Authentication:** Google Sign-In SDK + Firebase Auth
 - **Minimum iOS Version:** iOS 17.0+
 - **Development Tool:** Xcode 15+
 
 ### Backend (Firebase)
-- **Authentication:** Firebase Auth (Email/Password)
+- **Authentication:** Firebase Auth (Google Sign-In)
 - **Database:** Cloud Firestore (NoSQL, real-time)
 - **Push Notifications:** Firebase Cloud Messaging (FCM)
 - **Cloud Functions:** Node.js (for notification triggers, future AI integration)
@@ -30,7 +31,8 @@
 ### Swift Packages (via SPM)
 ```swift
 dependencies: [
-    .package(url: "https://github.com/firebase/firebase-ios-sdk", from: "10.18.0")
+    .package(url: "https://github.com/firebase/firebase-ios-sdk", from: "10.18.0"),
+    .package(url: "https://github.com/google/GoogleSignIn-iOS", from: "7.0.0")
 ]
 
 // Specific Firebase products:
@@ -38,13 +40,19 @@ dependencies: [
 - FirebaseFirestore
 - FirebaseFirestoreSwift
 - FirebaseMessaging
+- FirebaseCore
+
+// Google Sign-In:
+- GoogleSignIn
+- GoogleSignInSwift
 ```
 
 ### Firebase Project Configuration
 - **Project ID:** [Configured in GoogleService-Info.plist]
 - **Region:** us-central1 (Firestore)
-- **Authentication Methods:** Email/Password
+- **Authentication Methods:** Google Sign-In
 - **Firestore Mode:** Native mode with offline persistence
+- **URL Schemes:** Configured with REVERSED_CLIENT_ID for OAuth callback
 
 ## Architecture Patterns
 
@@ -190,11 +198,12 @@ match /typingIndicators/{indicatorId} {
 - **Scaling:** Auto-scaling, better for large datasets
 - **Modern SDK:** Better Swift support
 
-### Why Email/Password (Not Google Sign-In)?
-- **Simplicity:** Easier testing, no OAuth flow
-- **Privacy:** Users control credentials
-- **Flexibility:** Can add social auth later
-- **MVP Focus:** Ship faster with basic auth
+### Why Google Sign-In (Not Email/Password)?
+- **User Experience:** Single unified authentication flow
+- **Security:** No password management, leverages Google's infrastructure
+- **Convenience:** Most users already have Google accounts
+- **Data Quality:** Automatically get email, display name, and profile photo
+- **MVP Focus:** Simpler flow for users, no password reset or email verification needed
 
 ### Why Cloud Functions for Notifications?
 - **Security:** FCM server key not in iOS app

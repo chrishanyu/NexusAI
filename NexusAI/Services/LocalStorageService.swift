@@ -13,12 +13,21 @@ import SwiftData
 @available(iOS 17.0, *)
 class LocalStorageService {
     
+    // MARK: - Singleton
+    static let shared: LocalStorageService = {
+        do {
+            return try LocalStorageService()
+        } catch {
+            fatalError("Failed to initialize LocalStorageService: \(error.localizedDescription)")
+        }
+    }()
+    
     // MARK: - Properties
     private let modelContainer: ModelContainer
     private let modelContext: ModelContext
     
     // MARK: - Initialization
-    init() throws {
+    private init() throws {
         // Define the schema
         let schema = Schema([
             CachedMessage.self,
@@ -152,41 +161,73 @@ final class CachedMessage {
         self.readBy = message.readBy
         self.deliveredTo = message.deliveredTo
     }
-}
-
-/// Queued message waiting to be sent
-@available(iOS 17.0, *)
-@Model
-final class QueuedMessage {
-    var id: String
-    var conversationId: String
-    var senderId: String
-    var senderName: String
-    var text: String
-    var timestamp: Date
-    var localId: String
-    var retryCount: Int
     
-    init(from message: Message) {
-        self.id = message.id ?? UUID().uuidString
-        self.conversationId = message.conversationId
-        self.senderId = message.senderId
-        self.senderName = message.senderName
-        self.text = message.text
-        self.timestamp = message.timestamp
-        self.localId = message.localId ?? UUID().uuidString
-        self.retryCount = 0
+    var status: MessageStatus {
+        MessageStatus(rawValue: statusRaw) ?? .sent
     }
     
     func toMessage() -> Message {
         return Message(
-            id: nil,
+            id: id,
             conversationId: conversationId,
             senderId: senderId,
             senderName: senderName,
             text: text,
             timestamp: timestamp,
-            status: .sending,
+            status: status,
+            readBy: readBy,
+            deliveredTo: deliveredTo,
+            localId: nil
+        )
+    }
+}
+
+/// Local message model for queue management and offline support
+@available(iOS 17.0, *)
+@Model
+final class QueuedMessage {
+    var id: String
+    var localId: String
+    var conversationId: String
+    var senderId: String
+    var senderName: String
+    var text: String
+    var timestamp: Date
+    var statusRaw: String
+    var isQueued: Bool
+    var retryCount: Int
+    
+    init(from message: Message) {
+        self.id = message.id ?? UUID().uuidString
+        self.localId = message.localId ?? UUID().uuidString
+        self.conversationId = message.conversationId
+        self.senderId = message.senderId
+        self.senderName = message.senderName
+        self.text = message.text
+        self.timestamp = message.timestamp
+        self.statusRaw = message.status.rawValue
+        self.isQueued = true
+        self.retryCount = 0
+    }
+    
+    var status: MessageStatus {
+        get {
+            MessageStatus(rawValue: statusRaw) ?? .sending
+        }
+        set {
+            statusRaw = newValue.rawValue
+        }
+    }
+    
+    func toMessage() -> Message {
+        return Message(
+            id: id != localId ? id : nil, // Only use id if it's different from localId
+            conversationId: conversationId,
+            senderId: senderId,
+            senderName: senderName,
+            text: text,
+            timestamp: timestamp,
+            status: status,
             readBy: [senderId],
             deliveredTo: [],
             localId: localId
@@ -205,7 +246,7 @@ final class CachedConversation {
     var lastMessageText: String?
     var lastMessageTimestamp: Date?
     var createdAt: Date
-    var updatedAt: Date
+    var updatedAt: Date? // Optional to handle null values
     
     init(from conversation: Conversation) {
         self.id = conversation.id ?? UUID().uuidString

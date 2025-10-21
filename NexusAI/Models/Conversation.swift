@@ -13,7 +13,7 @@ enum ConversationType: String, Codable {
     case group
 }
 
-struct Conversation: Codable, Identifiable {
+struct Conversation: Codable, Identifiable, Hashable {
     @DocumentID var id: String?
     let type: ConversationType
     let participantIds: [String]
@@ -22,17 +22,27 @@ struct Conversation: Codable, Identifiable {
     var groupName: String?
     var groupImageUrl: String?
     let createdAt: Date
-    var updatedAt: Date
+    var updatedAt: Date? // Optional to handle null values from Firestore
     
-    struct ParticipantInfo: Codable {
+    struct ParticipantInfo: Codable, Hashable {
         let displayName: String
         let profileImageUrl: String?
     }
     
-    struct LastMessage: Codable {
+    struct LastMessage: Codable, Hashable {
         let text: String
         let senderId: String
         let senderName: String
         let timestamp: Date
+    }
+    
+    // MARK: - Hashable
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: Conversation, rhs: Conversation) -> Bool {
+        lhs.id == rhs.id
     }
 }

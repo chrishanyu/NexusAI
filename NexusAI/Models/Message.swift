@@ -19,17 +19,4 @@ struct Message: Codable, Identifiable {
     var readBy: [String]
     var deliveredTo: [String]
     var localId: String? // For optimistic UI updates
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case conversationId
-        case senderId
-        case senderName
-        case text
-        case timestamp
-        case status
-        case readBy
-        case deliveredTo
-        case localId
-    }
 }

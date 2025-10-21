@@ -89,6 +89,40 @@ class ConversationService {
         return createdConversation
     }
     
+    // MARK: - Helper Methods
+    
+    /// Get existing direct conversation or create a new one
+    /// This is a convenience method that combines find and create logic
+    func getOrCreateDirectConversation(participantIds: [String]) async throws -> Conversation {
+        guard participantIds.count == 2 else {
+            throw ConversationError.insufficientParticipants
+        }
+        
+        let userId = participantIds[0]
+        let otherUserId = participantIds[1]
+        
+        // Check if conversation already exists
+        if let existingConversation = try await findExistingDirectConversation(userId: userId, otherUserId: otherUserId) {
+            return existingConversation
+        }
+        
+        // Get user info for other participant
+        let authService = AuthService()
+        let otherUser = try await authService.getUserProfile(userId: otherUserId)
+        
+        let otherUserInfo = Conversation.ParticipantInfo(
+            displayName: otherUser.displayName,
+            profileImageUrl: otherUser.profileImageUrl
+        )
+        
+        // Create new conversation (createDirectConversation will fetch current user info)
+        return try await createDirectConversation(
+            userId: userId,
+            otherUserId: otherUserId,
+            otherUserInfo: otherUserInfo
+        )
+    }
+    
     // MARK: - Read Conversations
     
     /// Get conversations for a specific user

@@ -17,80 +17,55 @@ class MessageService {
     
     // MARK: - Send Messages
     
-    /// Send a message in a conversation
+    /// Send a message with optimistic UI support
+    /// - Parameters:
+    ///   - conversationId: ID of the conversation
+    ///   - text: Message text content
+    ///   - senderId: ID of the user sending the message
+    ///   - senderName: Display name of the sender
+    ///   - localId: Local ID for optimistic UI deduplication
+    /// - Returns: The Firestore-generated message ID
     func sendMessage(
-        conversationId: String,
-        text: String,
-        senderId: String,
-        senderName: String
-    ) async throws -> String {
-        let message = Message(
-            id: nil,
-            conversationId: conversationId,
-            senderId: senderId,
-            senderName: senderName,
-            text: text,
-            timestamp: Date(),
-            status: .sent,
-            readBy: [senderId], // Sender has read their own message
-            deliveredTo: [],
-            localId: nil
-        )
-        
-        // Add message to Firestore
-        let docRef = try db.collection(Constants.Collections.conversations)
-            .document(conversationId)
-            .collection(Constants.Collections.messages)
-            .addDocument(from: message)
-        
-        // Update conversation's last message
-        var savedMessage = message
-        savedMessage.id = docRef.documentID
-        try await conversationService.updateLastMessage(conversationId: conversationId, message: savedMessage)
-        
-        return docRef.documentID
-    }
-    
-    /// Send a message with optimistic UI (returns temporary ID)
-    func sendMessageOptimistic(
         conversationId: String,
         text: String,
         senderId: String,
         senderName: String,
         localId: String
     ) async throws -> String {
-        let message = Message(
-            id: nil,
+        // Create message data with server timestamp
+        let messageData: [String: Any] = [
+            "conversationId": conversationId,
+            "senderId": senderId,
+            "senderName": senderName,
+            "text": text,
+            "timestamp": FieldValue.serverTimestamp(),
+            "status": MessageStatus.sent.rawValue,
+            "readBy": [senderId],
+            "deliveredTo": [],
+            "localId": localId
+        ]
+        
+        // Add message to Firestore
+        let docRef = try await db.collection(Constants.Collections.conversations)
+            .document(conversationId)
+            .collection(Constants.Collections.messages)
+            .addDocument(data: messageData)
+        
+        // Create Message object for updating conversation's lastMessage
+        let sentMessage = Message(
+            id: docRef.documentID,
             conversationId: conversationId,
             senderId: senderId,
             senderName: senderName,
             text: text,
-            timestamp: Date(),
-            status: .sending,
+            timestamp: Date(), // Use current time for lastMessage display
+            status: .sent,
             readBy: [senderId],
             deliveredTo: [],
             localId: localId
         )
         
-        // Add message to Firestore
-        let docRef = try db.collection(Constants.Collections.conversations)
-            .document(conversationId)
-            .collection(Constants.Collections.messages)
-            .addDocument(from: message)
-        
-        // Update message status to sent
-        try await db.collection(Constants.Collections.conversations)
-            .document(conversationId)
-            .collection(Constants.Collections.messages)
-            .document(docRef.documentID)
-            .updateData([
-                "status": MessageStatus.sent.rawValue
-            ])
-        
         // Update conversation's last message
-        var sentMessage = message
-        sentMessage.id = docRef.documentID
-        sentMessage.status = .sent
         try await conversationService.updateLastMessage(conversationId: conversationId, message: sentMessage)
         
         return docRef.documentID
@@ -99,7 +74,7 @@ class MessageService {
     // MARK: - Read Messages
     
     /// Get messages for a conversation with pagination
-    func getMessages(conversationId: String, limit: Int = Constants.Pagination.messagesPerPage) async throws -> [Message] {
+    func getMessages(conversationId: String, limit: Int = 50) async throws -> [Message] {
         let snapshot = try await db.collection(Constants.Collections.conversations)
             .document(conversationId)
             .collection(Constants.Collections.messages)
@@ -111,7 +86,7 @@ class MessageService {
     }
     
     /// Get older messages before a specific timestamp
-    func getMessagesBefore(conversationId: String, beforeDate: Date, limit: Int = Constants.Pagination.messagesPerPage) async throws -> [Message] {
+    func getMessagesBefore(conversationId: String, beforeDate: Date, limit: Int = 50) async throws -> [Message] {
         let snapshot = try await db.collection(Constants.Collections.conversations)
             .document(conversationId)
             .collection(Constants.Collections.messages)
@@ -121,6 +96,61 @@ class MessageService {
             .getDocuments()
         
         return snapshot.documents.compactMap { try? $0.data(as: Message.self) }
+    }
+    
+    // MARK: - Real-Time Message Sync
+    
+    /// Listen to real-time message updates for a conversation
+    /// - Parameters:
+    ///   - conversationId: ID of the conversation to listen to
+    ///   - limit: Maximum number of recent messages to fetch (default 50)
+    ///   - onChange: Callback when messages change, receives array of messages
+    /// - Returns: Listener registration that must be removed when done
+    func listenToMessages(
+        conversationId: String,
+        limit: Int = 50,
+        onChange: @escaping ([Message]) -> Void
+    ) -> ListenerRegistration {
+        let listener = db.collection(Constants.Collections.conversations)
+            .document(conversationId)
+            .collection(Constants.Collections.messages)
+            .order(by: "timestamp", descending: false)
+            .limit(to: limit)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("Error listening to messages: \(error.localizedDescription)")
+                    onChange([])
+                    return
+                }
+                
+                guard let snapshot = snapshot else {
+                    print("Snapshot is nil")
+                    onChange([])
+                    return
+                }
+                
+                // Map documents to Message models
+                let messages = snapshot.documents.compactMap { document -> Message? in
+                    try? document.data(as: Message.self)
+                }
+                
+                // Call the onChange callback with updated messages
+                onChange(messages)
+                
+                // Log changes for debugging
+                snapshot.documentChanges.forEach { change in
+                    switch change.type {
+                    case .added:
+                        print("Message added: \(change.document.documentID)")
+                    case .modified:
+                        print("Message modified: \(change.document.documentID)")
+                    case .removed:
+                        print("Message removed: \(change.document.documentID)")
+                    }
+                }
+            }
+        
+        return listener
     }
     
     // MARK: - Message Status Updates
@@ -142,6 +172,23 @@ class MessageService {
         }
         
         try await batch.commit()
+    }
+    
+    /// Mark a single message as delivered
+    /// - Parameters:
+    ///   - conversationId: ID of the conversation
+    ///   - messageId: ID of the message to mark as delivered
+    ///   - userId: ID of the user who received the message
+    func markMessageAsDelivered(conversationId: String, messageId: String, userId: String) async throws {
+        let messageRef = db.collection(Constants.Collections.conversations)
+            .document(conversationId)
+            .collection(Constants.Collections.messages)
+            .document(messageId)
+        
+        try await messageRef.updateData([
+            "deliveredTo": FieldValue.arrayUnion([userId]),
+            "status": MessageStatus.delivered.rawValue
+        ])
     }
     
     /// Mark messages as read
