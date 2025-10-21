@@ -336,6 +336,150 @@ func updatePresence(_ isOnline: Bool) {
 **Anti-Pattern Warning:**
 Don't overuse singletons. Services like `MessageService`, `ConversationService` should be instantiated (injectable for testing).
 
+### 6. Protocol-Based Dependency Injection
+**Purpose:** Enable unit testing with mock implementations, decouple ViewModels from concrete services
+
+**Flow:**
+```
+1. Define protocol for service (e.g., AuthServiceProtocol)
+2. Concrete service conforms to protocol (AuthService)
+3. Mock service conforms to protocol (MockAuthService)
+4. ViewModel depends on protocol, not concrete type
+5. Tests inject mock, production injects real service
+```
+
+**Implementation:**
+```swift
+// Step 1: Define protocol
+protocol AuthServiceProtocol {
+    func signInWithGoogle() async throws -> User
+    func signOut() throws
+}
+
+// Step 2: Concrete service conforms
+class AuthService: AuthServiceProtocol {
+    func signInWithGoogle() async throws -> User {
+        // Real Firebase implementation
+    }
+}
+
+// Step 3: Mock service conforms
+class MockAuthService: AuthServiceProtocol {
+    var shouldSucceed = true
+    var mockUser: User?
+    
+    func signInWithGoogle() async throws -> User {
+        if shouldSucceed, let user = mockUser {
+            return user
+        }
+        throw AuthError.googleSignInFailed("Mock error")
+    }
+}
+
+// Step 4: ViewModel depends on protocol
+class AuthViewModel: ObservableObject {
+    private let authService: AuthServiceProtocol
+    
+    init(authService: AuthServiceProtocol = AuthService()) {
+        self.authService = authService
+    }
+}
+
+// Step 5: Testing
+let mockService = MockAuthService()
+mockService.shouldSucceed = true
+mockService.mockUser = User(...)
+let viewModel = AuthViewModel(authService: mockService)
+```
+
+### 7. Environment Object Propagation
+**Purpose:** Share ViewModels across view hierarchy without manual passing
+
+**Flow:**
+```
+1. Create ViewModel as @StateObject at app level
+2. Inject as .environmentObject() to root view
+3. Access in child views with @EnvironmentObject
+4. SwiftUI automatically provides same instance
+```
+
+**Implementation:**
+```swift
+// App level
+@main
+struct NexusAIApp: App {
+    @StateObject private var authViewModel = AuthViewModel()
+    
+    var body: some Scene {
+        WindowGroup {
+            if authViewModel.isAuthenticated {
+                ContentView()
+                    .environmentObject(authViewModel)
+            } else {
+                LoginView()
+                    .environmentObject(authViewModel)
+            }
+        }
+    }
+}
+
+// Child view
+struct LoginView: View {
+    @EnvironmentObject private var authViewModel: AuthViewModel
+    
+    var body: some View {
+        Button("Sign In") {
+            Task {
+                await authViewModel.signIn()
+            }
+        }
+    }
+}
+```
+
+### 8. Google Sign-In Integration Pattern
+**Purpose:** Convert Google OAuth credentials to Firebase Auth credentials
+
+**Flow:**
+```
+1. Get root view controller (required by GoogleSignIn SDK)
+2. Call GIDSignIn.sharedInstance.signIn()
+3. Receive GIDGoogleUser with OAuth tokens
+4. Create Firebase credential from Google ID token
+5. Sign in to Firebase Auth with credential
+6. Create/update user profile in Firestore
+7. Return User model to ViewModel
+```
+
+**Implementation:**
+```swift
+func signInWithGoogle() async throws -> User {
+    // Step 1: Get root view controller
+    guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+          let rootViewController = windowScene.windows.first?.rootViewController else {
+        throw AuthError.googleSignInFailed("No root view controller")
+    }
+    
+    // Step 2-3: Google Sign-In
+    let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
+    guard let idToken = result.user.idToken?.tokenString else {
+        throw AuthError.googleSignInFailed("No ID token")
+    }
+    
+    // Step 4: Create Firebase credential
+    let credential = GoogleAuthProvider.credential(
+        withIDToken: idToken,
+        accessToken: result.user.accessToken.tokenString
+    )
+    
+    // Step 5: Firebase Auth
+    let authResult = try await Auth.auth().signIn(with: credential)
+    
+    // Step 6: Firestore profile
+    return try await createOrUpdateUserInFirestore(firebaseUser: authResult.user)
+}
+```
+
 ## Data Flow Diagrams
 
 ### Message Sending Flow

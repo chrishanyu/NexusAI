@@ -12,6 +12,7 @@ enum MessageStatus: String, Codable {
     case sent
     case delivered
     case read
+    case failed
     
     var description: String {
         switch self {
@@ -23,6 +24,8 @@ enum MessageStatus: String, Codable {
             return "Delivered"
         case .read:
             return "Read"
+        case .failed:
+            return "Failed"
         }
     }
 }

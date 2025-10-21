@@ -3,8 +3,8 @@
 ## Current Focus
 
 **Sprint:** MVP Foundation  
-**Phase:** PR #3 - Firebase Services Layer  
-**Status:** ✅ COMPLETE - All services implemented and building successfully
+**Phase:** PR #4 - Authentication Flow  
+**Status:** ✅ COMPLETE - Google Sign-In fully implemented and tested
 
 ## What We're Building Right Now
 
@@ -25,54 +25,62 @@
    - `Constants.swift` - App-wide constants
    - `Date+Extensions.swift` - Smart timestamp formatting
 
-3. ✅ **Firebase Services Layer (PR #3 - JUST COMPLETED)**
+3. ✅ **Firebase Services Layer (PR #3)**
    - `FirebaseService.swift` - Firebase singleton with offline persistence (100MB cache)
-   - `AuthService.swift` - Email/password authentication, user profile management
+   - `AuthService.swift` - Authentication and user profile management
    - `ConversationService.swift` - Direct/group conversation CRUD, real-time listeners
    - `MessageService.swift` - Message sending with optimistic UI, status tracking, pagination
    - `PresenceService.swift` - Online/offline status, typing indicators with auto-expiration
    - `LocalStorageService.swift` - SwiftData persistence for offline caching
 
-**Build Status:** ✅ All services compile successfully, no errors
+4. ✅ **Authentication Flow (PR #4 - JUST COMPLETED)**
+   - `AuthService.swift` - Google Sign-In integration with Firebase Auth, Firestore user profile creation/update with retry logic
+   - `AuthServiceProtocol.swift` - Protocol for dependency injection and testability
+   - `MockAuthService.swift` - Mock implementation for unit testing
+   - `AuthViewModel.swift` - Auth state management with loading states, error handling, and auth state listener
+   - `LoginView.swift` - Google Sign-In UI with accessibility support, haptic feedback, and inline error display
+   - `NexusAIApp.swift` - Auth-based navigation with conditional LoginView/ContentView
+   - `ContentView.swift` - Temporary authenticated home screen with user info and sign out button
+   - `AuthServiceTests.swift` - Unit tests for AuthService using MockAuthService
+
+**Build Status:** ✅ All features compile and tested successfully, no errors
 
 ## Next Immediate Steps
 
-### PR #4: Authentication Flow
-**Priority:** HIGH - Required for all subsequent features
+### PR #5: Conversation List Screen
+**Priority:** HIGH - Core navigation hub
 
 **Files to Create:**
-1. `ViewModels/AuthViewModel.swift`
-   - Auth state management
-   - Login/signup logic
-   - Error handling
-   - Loading states
+1. `ViewModels/ConversationListViewModel.swift`
+   - Conversation list state management
+   - Real-time conversation updates
+   - Search/filter logic
+   - Create conversation flow
 
-2. `Views/Auth/LoginView.swift`
-   - Email/password input fields
-   - Login button
-   - Link to SignUpView
-   - Error display
+2. `Views/ConversationList/ConversationListView.swift`
+   - List of conversations
+   - Search bar
+   - Create conversation button
+   - Navigation to ChatView
 
-3. `Views/Auth/SignUpView.swift`
-   - Email, password, display name inputs
-   - Sign up button
-   - Input validation
-   - Link to LoginView
+3. `Views/ConversationList/ConversationRowView.swift`
+   - Individual conversation row
+   - Last message preview
+   - Unread badge
+   - Online status indicator
+   - Timestamp
 
-4. `Views/Auth/ProfileSetupView.swift`
-   - Display name configuration
-   - Optional profile image
-   - Completion flow
-
-5. Update `NexusAIApp.swift`
-   - Auth state listener
-   - Conditional navigation (logged in → conversation list, logged out → login)
+4. `Views/ConversationList/CreateConversationView.swift`
+   - User search/selection
+   - Create direct or group conversation
+   - Validation
 
 **Success Criteria:**
-- Users can sign up with email/password
-- Users can log in and see conversation list
-- Auth state persists across app restarts
-- Proper error handling for auth failures
+- Users can see their conversation list
+- Real-time updates when new messages arrive
+- Can navigate to individual conversations
+- Can create new direct conversations
+- Conversations sorted by last message timestamp
 
 ## Recent Decisions
 
@@ -90,9 +98,15 @@
    - Impact: Messages use localId, complex merge logic
    - Implementation: MessageService has optimistic UI support
 
-4. **Email/Password Auth (Not Google Sign-In)**
-   - Reason: Simpler for MVP, faster testing
-   - Impact: Can add social auth post-MVP
+4. **Google Sign-In Only (Not Email/Password)**
+   - Reason: Single unified authentication experience, leverages existing Google accounts
+   - Impact: Simpler user flow, no password management, pulls email/display name/photo from Google
+   - Implementation: Uses GoogleSignIn SDK + Firebase Auth credential conversion
+
+5. **Protocol-Based Dependency Injection**
+   - Reason: Enables unit testing with mock services
+   - Impact: Services implement protocols, ViewModels inject protocol dependencies
+   - Implementation: AuthServiceProtocol + MockAuthService for testing
 
 ### Technical Decisions (PR #3)
 1. **Swift Concurrency (async/await) Over Completion Handlers**
@@ -200,22 +214,25 @@ All dependencies available:
 ## Work In Progress
 
 ### Active Branches
-- `feature/firebase-service` - ✅ PR #3 complete, ready to merge
-- Next: `feature/authentication` (PR #4)
+- `feature/auth` - ✅ PR #4 complete, ready to merge
+- Next: `feature/conversation-list` (PR #5)
 
-### Files Recently Created (PR #3)
-1. `NexusAI/Services/FirebaseService.swift` - Firebase singleton, offline persistence
-2. `NexusAI/Services/AuthService.swift` - Authentication and user management
-3. `NexusAI/Services/ConversationService.swift` - Conversation CRUD and listeners
-4. `NexusAI/Services/MessageService.swift` - Message operations and real-time sync
-5. `NexusAI/Services/PresenceService.swift` - Presence and typing indicators
-6. `NexusAI/Services/LocalStorageService.swift` - SwiftData caching and offline queue
+### Files Recently Created (PR #4)
+1. `NexusAI/Services/AuthService.swift` - Updated with Google Sign-In integration
+2. `NexusAI/Services/AuthServiceProtocol.swift` - Protocol for dependency injection
+3. `NexusAI/ViewModels/AuthViewModel.swift` - Auth state management, error handling
+4. `NexusAI/Views/Auth/LoginView.swift` - Google Sign-In UI with accessibility
+5. `NexusAI/NexusAIApp.swift` - Updated with auth-based navigation
+6. `NexusAI/ContentView.swift` - Temporary authenticated home screen
+7. `NexusAITests/Mocks/MockAuthService.swift` - Mock service for testing
+8. `NexusAITests/Services/AuthServiceTests.swift` - Unit tests
 
 ### Key Implementation Details
-- **AuthService:** Includes chunked user fetching (max 10 per Firestore 'in' query)
-- **MessageService:** Optimistic UI with localId, pagination support (50 messages/page)
-- **PresenceService:** Typing indicators with 3s auto-expiration using Timer
-- **LocalStorageService:** SwiftData models for cached messages, queued messages, cached conversations
+- **AuthService:** Google Sign-In flow with Firebase credential conversion, Firestore user profile creation/update with 2-attempt retry logic
+- **AuthViewModel:** Auth state listener, loading states, user-friendly error messages with auto-dismissal
+- **LoginView:** Haptic feedback, VoiceOver accessibility, inline error display, dynamic button states
+- **App Navigation:** Conditional rendering based on `isAuthenticated` state
+- **Testing:** Protocol-based mocking enables comprehensive unit tests without Firebase dependencies
 
 ## Testing Status
 
@@ -223,28 +240,38 @@ All dependencies available:
 - ✅ Project builds successfully
 - ✅ Firebase SDK loads without errors
 - ✅ Models compile and conform to Codable
+- ✅ Google Sign-In authentication flow
+- ✅ Firestore user profile creation/update
+- ✅ Auth state persistence across app restarts
+- ✅ Sign out functionality
+- ✅ Error handling (network failures, cancelled sign-in)
+
+### Unit Tests Completed
+- ✅ AuthService unit tests with MockAuthService
+- ✅ Protocol-based dependency injection pattern validated
 
 ### Testing Needed
-- [ ] Service layer integration with Firestore
+- [ ] Service layer integration with Firestore (ConversationService, MessageService)
 - [ ] Real-time listener functionality
 - [ ] Offline persistence with SwiftData
-- [ ] Authentication flow
 - [ ] Message sending and receiving
 
 ## Next Session Priorities
 
 ### Immediate (Next Work Session)
-1. **Complete PR #2:** Finalize any model adjustments
-2. **Start PR #3:** Begin Services layer implementation
-   - Create FirebaseService.swift
-   - Create AuthService.swift
-   - Create ConversationService.swift
-   - Create MessageService.swift
+1. **Start PR #5:** Conversation List Screen
+   - Create ConversationListViewModel
+   - Create ConversationListView
+   - Create ConversationRowView
+   - Create CreateConversationView
+   - Wire up ConversationService for real-time updates
+
+2. **Merge PR #4:** Authentication flow branch ready to merge
 
 ### Short-Term (This Week)
-1. **Complete PR #3:** All services implemented and tested
-2. **Start PR #4:** Authentication flow (ViewModels + Views)
-3. **Start PR #5:** Conversation list screen
+1. **Complete PR #5:** Conversation list with real-time updates
+2. **Start PR #6:** Chat screen UI
+3. **Start PR #7:** Message sending with optimistic UI
 
 ### Medium-Term (Next Week)
 1. **PRs #6-8:** Chat screen with real-time messaging

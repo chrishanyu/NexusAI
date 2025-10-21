@@ -17,15 +17,4 @@ struct User: Codable, Identifiable {
     var isOnline: Bool
     var lastSeen: Date
     let createdAt: Date
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case googleId
-        case email
-        case displayName
-        case profileImageUrl
-        case isOnline
-        case lastSeen
-        case createdAt
-    }
 }

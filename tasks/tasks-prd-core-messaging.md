@@ -1,0 +1,413 @@
+# Task List: Core Messaging (Phase 3)
+
+## Relevant Files
+
+- `NexusAI/Views/Components/ProfileImageView.swift` - Reusable profile picture component with fallback to initials
+- `NexusAI/Views/Components/OnlineStatusIndicator.swift` - Green dot indicator for online status
+- `NexusAI/Utilities/Extensions/Date+Extensions.swift` - Smart timestamp formatting (5m, 2h, Yesterday, etc.)
+- `NexusAI/ViewModels/ConversationListViewModel.swift` - Manages conversation list state and Firestore listeners
+- `NexusAI/Views/ConversationList/ConversationListView.swift` - Main conversation list screen
+- `NexusAI/Views/ConversationList/ConversationRowView.swift` - Individual conversation row component
+- `NexusAI/Views/ConversationList/NewConversationView.swift` - New conversation creation screen
+- `NexusAI/ViewModels/ChatViewModel.swift` - Manages chat screen state, optimistic UI, and message sync
+- `NexusAI/Views/Chat/ChatView.swift` - Main chat screen
+- `NexusAI/Views/Chat/MessageBubbleView.swift` - Message bubble component with styling
+- `NexusAI/Views/Chat/MessageInputView.swift` - Message input bar with text field and send button
+- `NexusAI/Views/Chat/MessageStatusView.swift` - Message status indicator icons
+- `NexusAI/Views/Chat/TypingIndicatorView.swift` - Placeholder for typing indicator (PR #9)
+- `NexusAI/Services/MessageService.swift` - Message sending, listening, and status updates (modify existing)
+- `NexusAI/Services/ConversationService.swift` - Conversation CRUD operations (modify existing)
+- `NexusAI/Services/MessageQueueService.swift` - Offline message queue management
+- `NexusAI/Services/LocalStorageService.swift` - SwiftData persistence (modify existing)
+- `NexusAI/Utilities/NetworkMonitor.swift` - Network connectivity monitoring
+- `NexusAI/Utilities/Constants.swift` - UI constants for colors, dimensions (modify existing)
+
+### Notes
+
+- This task list covers Phase 3: Core Messaging from the building phases
+- Tasks should be implemented sequentially as they build upon each other
+- Test each major feature thoroughly before moving to the next
+- Use simulator for testing real-time sync with multiple sessions
+- No unit tests required for MVP (focus on functional testing)
+
+## Tasks
+
+- [x] 0.0 App Integration (Navigation Setup)
+  - [x] 0.1 Update `ContentView.swift` to show `ConversationListView` after authentication
+    - [x] Replace placeholder content with ConversationListView
+    - [x] Pass authViewModel as environment object
+    - [x] Ensure proper navigation flow from login → conversation list
+
+- [x] 1.0 Create Reusable UI Components
+  - [x] 1.1 Create `ProfileImageView.swift` component
+    - [x] Display user profile image from URL using AsyncImage
+    - [x] Show initials-based fallback (first letter of display name) when no image URL
+    - [x] Add circular clipping with configurable size parameter
+    - [x] Support both single user and group conversation icons
+  - [x] 1.2 Create `OnlineStatusIndicator.swift` component
+    - [x] Display green dot (8pt diameter) for online status
+    - [x] Display gray dot for offline status
+    - [x] Add positioning as overlay on profile images
+    - [x] Make status optional (hide for group conversations)
+  - [x] 1.3 Extend `Date+Extensions.swift` with smart timestamp formatting
+    - [x] Add `smartTimestamp()` method returning String
+    - [x] Implement "Just now" for messages < 1 minute old
+    - [x] Implement "5m", "23m" format for < 60 minutes
+    - [x] Implement "2h", "8h" format for < 24 hours
+    - [x] Implement "Yesterday" for yesterday's messages
+    - [x] Implement weekday names ("Mon", "Tue") for < 7 days
+    - [x] Implement "MM/DD" format for older messages
+  - [x] 1.4 Update `Constants.swift` with UI values
+    - [x] Add color constants (message bubble colors, status colors)
+    - [x] Add dimension constants (bubble padding, corner radius, icon sizes)
+    - [x] Add animation duration constants
+
+- [x] 2.0 Build Conversation List Infrastructure
+  - [x] 2.1 Create `ConversationListViewModel.swift`
+    - [x] Add @Published properties: conversations array, isLoading, errorMessage, searchText
+    - [x] Implement init() to start listening on creation
+    - [x] Add deinit() to clean up Firestore listener
+    - [x] Add currentUserId property from AuthService
+  - [x] 2.2 Implement Firestore listener for conversations
+    - [x] Create `listenToConversations()` method in ViewModel
+    - [x] Query `conversations` collection with `.whereField("participantIds", arrayContains: currentUserId)`
+    - [x] Order by `updatedAt` descending (most recent first)
+    - [x] Add snapshot listener with error handling
+    - [x] Map Firestore documents to Conversation models
+    - [x] Update @Published conversations array on changes
+  - [x] 2.3 Add conversation filtering and search
+    - [x] Create `filteredConversations` computed property
+    - [x] Filter by display name matching searchText
+    - [x] Filter by last message text matching searchText
+    - [x] Make search case-insensitive
+    - [x] Return all conversations when searchText is empty
+  - [x] 2.4 Implement local caching with LocalStorageService
+    - [x] Call `LocalStorageService.saveConversation()` for each received conversation
+    - [x] Load cached conversations on ViewModel init if offline
+    - [x] Display cached data immediately, then sync with Firestore
+  - [x] 2.5 Create `ConversationRowView.swift` component
+    - [x] Add leading ProfileImageView (50pt size)
+    - [x] Add OnlineStatusIndicator overlay on profile image
+    - [x] Add VStack with display name (17pt semibold) and last message preview (15pt, gray)
+    - [x] Truncate last message preview to 1 line with "..." 
+    - [x] Add timestamp in top-right (13pt, gray) using smartTimestamp()
+    - [x] Add unread badge count (red circle with white text) if unread > 0
+    - [x] Add read receipt indicator (double checkmark) if applicable
+    - [x] Make entire row tappable with navigation to ChatView
+  - [x] 2.6 Create `ConversationListView.swift` main screen
+    - [x] Add navigation view with "Nexus" title
+    - [x] Add search bar at top bound to viewModel.searchText
+    - [x] Display List of ConversationRowView using filteredConversations
+    - [x] Add pull-to-refresh gesture calling viewModel.refresh()
+    - [x] Show LoadingView when isLoading is true
+    - [x] Display empty state when conversations.isEmpty (icon, "No conversations yet", subtitle)
+    - [x] Add FAB (floating action button) in bottom-right corner (56pt blue circle with + icon)
+    - [x] Handle FAB tap to navigate to NewConversationView
+  - [x] 2.7 Update `ConversationService.swift` with helper methods
+    - [x] Add `getOrCreateDirectConversation(participantIds:)` method
+    - [x] Check if conversation exists with exact participant set
+    - [x] Return existing conversation if found
+    - [x] Create new conversation if not found
+
+- [x] 3.0 Implement New Conversation Flow
+  - [x] 3.1 Create `NewConversationView.swift` screen
+    - [x] Add navigation bar with "New Conversation" title and Cancel button
+    - [x] Add search bar for filtering users
+    - [x] Create @State for searchText and availableUsers array
+  - [x] 3.2 Fetch and display available users
+    - [x] Query Firestore `users` collection on view appear
+    - [x] Filter out current user from results
+    - [x] Map to User models and update availableUsers array
+    - [x] Implement search filtering on display name and email
+  - [x] 3.3 Create user selection rows
+    - [x] Display ProfileImageView (44pt size)
+    - [x] Show display name (16pt semibold) and email (14pt gray)
+    - [x] Add OnlineStatusIndicator overlay
+    - [x] Make rows tappable
+  - [x] 3.4 Handle user selection and conversation creation
+    - [x] On tap, call `ConversationService.getOrCreateDirectConversation()`
+    - [x] Pass current user ID and selected user ID as participantIds
+    - [x] Show loading indicator during creation
+    - [x] Navigate to ChatView with conversation on success
+    - [x] Dismiss NewConversationView sheet
+    - [x] Handle errors with alert message
+
+- [x] 4.0 Build Chat Screen UI Components
+  - [x] 4.1 Create `MessageStatusView.swift` component
+    - [x] Accept message status enum as parameter
+    - [x] Display clock icon (gray) for "sending" status
+    - [x] Display single checkmark (gray) for "sent" status
+    - [x] Display double checkmark (gray) for "delivered" status
+    - [x] Display double checkmark (blue) for "read" status
+    - [x] Use 12pt SF Symbols icons
+    - [x] Position in bottom-right of message bubble
+  - [x] 4.2 Create `MessageBubbleView.swift` component
+    - [x] Accept Message model and Bool isFromCurrentUser as parameters
+    - [x] Apply HStack alignment: trailing if isFromCurrentUser, leading otherwise
+    - [x] Create bubble with Text(message.text)
+    - [x] Apply blue background for sent messages, light gray for received
+    - [x] Apply white text for sent, black for received
+    - [x] Add 16pt corner radius and proper padding (12pt vertical, 16pt horizontal)
+    - [x] Set max width to 75% of screen width
+    - [x] Add small tail triangle pointing right (sent) or left (received)
+    - [x] Add timestamp below bubble (13pt, gray)
+    - [x] Add MessageStatusView for sent messages only
+  - [x] 4.3 Create `MessageInputView.swift` component
+    - [x] Create HStack with text field and send button
+    - [x] Add @Binding<String> for message text
+    - [x] Add closure parameter for send action: () -> Void
+    - [x] Implement TextField with "Message..." placeholder
+    - [x] Make text field expandable (1-4 lines) using TextEditor
+    - [x] Add gray rounded background to text field (36pt initial height)
+    - [x] Create send button as 36pt blue circle with white arrow SF Symbol
+    - [x] Disable send button (gray) when text is empty
+    - [x] Enable send button (blue) when text contains characters
+    - [x] Call send action and clear text field on button tap
+  - [x] 4.4 Create `TypingIndicatorView.swift` placeholder
+    - [x] Create basic view structure with Text placeholder
+    - [x] Add @Published isTyping and typingUserName properties
+    - [x] Show "X is typing..." text (implementation in future PR)
+    - [x] Hide view by default
+    - [x] Add position above message input bar
+
+- [x] 5.0 Implement Message Display and Styling
+  - [x] 5.1 Create `ChatViewModel.swift` structure
+    - [x] Add @Published properties: messages, conversation, isLoading, errorMessage
+    - [x] Add @Published messageText for input binding
+    - [x] Add currentUserId from AuthService
+    - [x] Add init with conversationId parameter
+    - [x] Add deinit to clean up listeners
+  - [x] 5.2 Create `ChatView.swift` main screen
+    - [x] Add NavigationView with conversation display name as title
+    - [x] Add subtitle text showing online status or "Last seen X ago"
+    - [x] Create ScrollViewReader for message list
+    - [x] Create ScrollView with LazyVStack of messages
+    - [x] Use ForEach with message.id to display MessageBubbleView for each message
+    - [x] Determine isFromCurrentUser by comparing message.senderId with currentUserId
+    - [x] Add TypingIndicatorView above input bar (hidden initially)
+    - [x] Add MessageInputView at bottom with messageText binding and sendMessage action
+    - [x] Use @StateObject for ChatViewModel
+  - [x] 5.3 Implement auto-scroll to bottom
+    - [x] Add invisible view with id "bottom" at end of message list
+    - [x] On view appear, call scrollViewReader.scrollTo("bottom")
+    - [x] Create shouldAutoScroll state to track if user is at bottom
+    - [x] Only auto-scroll on new messages if shouldAutoScroll is true
+  - [x] 5.4 Add navigation from ConversationListView
+    - [x] Wrap ConversationRowView in NavigationLink
+    - [x] Pass conversation.id to ChatView destination
+    - [x] Test navigation flow works correctly
+
+- [x] 6.0 Implement Message Sending with Optimistic UI
+  - [x] 6.1 Create optimistic message structure in ChatViewModel
+    - [x] Add @Published optimisticMessages: [Message] array
+    - [x] Add @Published firestoreMessages: [Message] array
+    - [x] Create computed property allMessages combining and sorting both arrays
+    - [x] Implement merge logic to deduplicate by localId
+  - [x] 6.2 Implement sendMessage() method in ChatViewModel
+    - [x] Generate UUID for localId
+    - [x] Create optimistic Message with localId, current timestamp, "sending" status
+    - [x] Append to optimisticMessages array
+    - [x] Clear messageText field
+    - [x] Scroll to bottom (handled by ChatView's onChange)
+    - [x] Save message to LocalStorageService
+  - [x] 6.3 Implement MessageService.sendMessage() method
+    - [x] Accept conversationId, text, senderId, senderName, localId parameters
+    - [x] Create message document in Firestore at `conversations/{conversationId}/messages`
+    - [x] Use FieldValue.serverTimestamp() for timestamp
+    - [x] Set initial status as "sent"
+    - [x] Return auto-generated messageId on success
+    - [x] Throw error on failure
+  - [x] 6.4 Connect optimistic UI to Firestore write
+    - [x] After creating optimistic message, call MessageService.sendMessage()
+    - [x] Use Task { } for async/await call
+    - [x] On success, find optimistic message by localId and update with messageId
+    - [x] Change status from "sending" to "sent"
+    - [x] On failure, catch error and update status to "failed"
+  - [x] 6.5 Update conversation's lastMessage
+    - [x] Create MessageService.updateLastMessage() method (exists in ConversationService)
+    - [x] Update Firestore conversation document's lastMessage field
+    - [x] Set lastMessage.text, lastMessage.senderId, lastMessage.timestamp
+    - [x] Update conversation's updatedAt field to current timestamp
+    - [x] Call this method after successful message send
+  - [x] 6.6 Add retry functionality for failed messages
+    - [x] Add retry button to MessageBubbleView for failed status messages
+    - [x] Create retryMessage(localId:) method in ChatViewModel
+    - [x] Change status back to "sending" and retry MessageService.sendMessage()
+    - [x] Handle success/failure same as original send
+  - [x] 6.7 Implement error message display
+    - [x] Add @Published errorMessage in ChatViewModel
+    - [x] Show alert or banner above MessageInputView when errorMessage is set
+    - [x] Map Firestore errors to user-friendly messages
+    - [x] Auto-dismiss error after 5 seconds
+
+- [x] 7.0 Create Offline Message Queue System
+  - [x] 7.1 Create `NetworkMonitor.swift` utility
+    - [x] Import Network framework
+    - [x] Create singleton class with shared instance
+    - [x] Add @Published isConnected: Bool property
+    - [x] Use NWPathMonitor to track network status
+    - [x] Create background DispatchQueue for monitoring
+    - [x] Start monitoring in init, update isConnected on changes
+  - [x] 7.2 Create SwiftData models for queue
+    - [x] Create LocalMessage model with @Model macro (QueuedMessage)
+    - [x] Add properties: localId, conversationId, text, senderId, senderName, timestamp, status
+    - [x] Add isQueued Boolean flag
+    - [x] Create LocalConversation model for caching (CachedConversation)
+  - [x] 7.3 Create `MessageQueueService.swift`
+    - [x] Create singleton service
+    - [x] Add ModelContext property for SwiftData (uses LocalStorageService)
+    - [x] Implement enqueue(message:) method saving to SwiftData
+    - [x] Implement getQueuedMessages() returning all queued messages
+    - [x] Implement removeFromQueue(localId:) method
+  - [x] 7.4 Implement queue flushing logic
+    - [x] Create flushQueue() method in MessageQueueService
+    - [x] Fetch all queued messages from SwiftData
+    - [x] Sort by timestamp ascending (maintain order)
+    - [x] Loop through each message and call MessageService.sendMessage()
+    - [x] On success, remove from queue and update status to "sent"
+    - [x] On failure, keep in queue but update status to "failed"
+    - [x] Return results array with success/failure for each message
+  - [x] 7.5 Integrate NetworkMonitor with message sending
+    - [x] Observe NetworkMonitor.shared.isConnected in ChatViewModel
+    - [x] When sending message, check if network is connected
+    - [x] If offline, call MessageQueueService.enqueue() instead of direct send
+    - [x] Keep status as "sending" for queued messages (not "failed")
+    - [x] When isConnected changes from false to true, call flushQueue()
+  - [x] 7.6 Display offline indicator in UI
+    - [x] Add @Published isOffline in ChatViewModel observing NetworkMonitor
+    - [x] Show yellow banner at top of ChatView when isOffline is true
+    - [x] Display message: "No internet connection. Messages will send when reconnected."
+    - [x] Hide banner when connection restored
+  - [ ] 7.7 Implement exponential backoff for retries (SKIPPED - optional enhancement)
+    - [ ] Create retry logic in MessageQueueService
+    - [ ] Track retry count for each failed message
+    - [ ] Implement delays: 1s, 2s, 4s, 8s for retries 1-4
+    - [ ] Stop retrying after 4 attempts and mark as permanently failed
+    - [ ] Allow manual retry from UI to override
+
+- [x] 8.0 Implement Real-Time Message Sync
+  - [x] 8.1 Create MessageService.listenToMessages() method
+    - [x] Accept conversationId and limit parameters
+    - [x] Query `conversations/{conversationId}/messages` collection
+    - [x] Order by timestamp ascending
+    - [x] Apply .limit(limit) for pagination (default 50)
+    - [x] Add snapshot listener
+    - [x] Return listener registration for cleanup
+  - [x] 8.2 Implement message listener in ChatViewModel
+    - [x] Add listener property to store registration
+    - [x] Call listenToMessages() in init (via startListeningToMessages)
+    - [x] In listener callback, map documents to Message models (handled by MessageService)
+    - [x] Update firestoreMessages array with new data
+    - [x] Handle document changes (handled by Firestore snapshot listener)
+  - [x] 8.3 Implement message merging logic
+    - [x] In allMessages computed property, combine optimistic and Firestore arrays
+    - [x] Check each Firestore message for matching localId in optimistic messages
+    - [x] If match found, remove optimistic message (Firestore version is authoritative)
+    - [x] If no match, include both in final array
+    - [x] Sort combined array by timestamp ascending
+    - [x] Remove duplicates by messageId if any exist
+  - [x] 8.4 Update local storage as messages arrive
+    - [x] Call LocalStorageService.cacheMessages() for each Firestore message
+    - [x] Update existing cached messages (clear and re-cache to avoid duplicates)
+    - [x] Ensure offline data stays in sync with Firestore
+  - [x] 8.5 Implement delivered status updates
+    - [x] When message arrives via listener, check if current user is sender
+    - [x] If not sender, update message's deliveredTo array in Firestore
+    - [x] Call MessageService.markMessageAsDelivered(messageId, userId)
+    - [x] Use FieldValue.arrayUnion([userId]) to add to deliveredTo
+  - [x] 8.6 Implement smart auto-scroll behavior
+    - [x] Track shouldAutoScroll state variable
+    - [x] Check if new messages > old messages (not initial load)
+    - [x] Always auto-scroll for messages sent by current user
+    - [x] Only auto-scroll for others' messages if shouldAutoScroll is true
+    - [x] Animated scroll for better UX
+  - [x] 8.7 Clean up listener on view dismissal
+    - [x] Add .onDisappear modifier to ChatView
+    - [x] Call cleanupListeners() to unsubscribe
+    - [x] Implement proper cleanup in ChatViewModel deinit
+
+- [x] 9.0 Add Message Pagination and History Loading
+  - [x] 9.1 Add pagination state to ChatViewModel
+    - [x] Add @Published isLoadingOlderMessages: Bool
+    - [x] Add @Published hasMoreMessages: Bool (default true)
+    - [x] Add lastLoadedMessage: Message? to track pagination cursor
+  - [x] 9.2 Implement loadOlderMessages() method
+    - [x] Set isLoadingOlderMessages to true
+    - [x] Get oldest message timestamp from current messages array
+    - [x] Query Firestore for 50 messages before oldest timestamp
+    - [x] Use .end(before: oldestTimestamp) for cursor
+    - [x] Append results to beginning of firestoreMessages array
+    - [x] Set hasMoreMessages to false if < 50 messages returned
+    - [x] Set isLoadingOlderMessages to false
+    - [x] Save loaded messages to LocalStorageService
+  - [x] 9.3 Add pull-to-refresh at top of message list
+    - [x] Add refreshable modifier to ScrollView in ChatView
+    - [x] Call viewModel.loadOlderMessages() on refresh
+    - [x] Show loading spinner at top while isLoadingOlderMessages is true
+  - [x] 9.4 Maintain scroll position during pagination
+    - [x] Before loading older messages, save current scroll offset
+    - [x] After new messages loaded and view updated, restore scroll position
+    - [x] Use ScrollViewReader and scrollTo with saved message id
+    - [x] Ensure no visual jump when messages appear at top
+  - [x] 9.5 Display "No more messages" indicator
+    - [x] When hasMoreMessages is false, show text at top of message list
+    - [x] Display "No more messages" in gray, centered
+    - [x] Only show when not loading and messages exist
+  - [x] 9.6 Handle edge case: very first message load
+    - [x] Ensure initial listener load gets first 50 messages
+    - [x] Auto-scroll to bottom on first load
+    - [x] Set hasMoreMessages correctly based on result count
+
+- [ ] 10.0 Integration Testing and Polish
+  - [ ] 10.1 Test conversation list functionality
+    - [ ] Verify conversations load and display correctly
+    - [ ] Test search/filter functionality
+    - [ ] Test pull-to-refresh updates
+    - [ ] Test navigation to chat screen
+    - [ ] Verify empty state displays for new users
+    - [ ] Test new conversation creation flow
+  - [ ] 10.2 Test message sending scenarios
+    - [ ] Send single message and verify appears instantly
+    - [ ] Send 20+ rapid messages and verify all deliver
+    - [ ] Test offline message queueing (airplane mode on)
+    - [ ] Test automatic flush when connection restored
+    - [ ] Test retry button for failed messages
+    - [ ] Verify no duplicate messages after optimistic/Firestore merge
+  - [ ] 10.3 Test real-time sync between devices
+    - [ ] Open chat on two simulator instances or devices
+    - [ ] Send message from Device A, verify appears on Device B within 1 second
+    - [ ] Verify delivered status updates correctly
+    - [ ] Test bidirectional messaging works smoothly
+  - [ ] 10.4 Test message pagination
+    - [ ] Load chat with 100+ messages
+    - [ ] Pull down at top to load older messages
+    - [ ] Verify scroll position maintained (no jump)
+    - [ ] Test "No more messages" indicator appears when all loaded
+  - [ ] 10.5 Test app lifecycle scenarios
+    - [ ] Background app while in chat, send message from other device, foreground and verify message appears
+    - [ ] Force quit app, reopen, verify messages load from cache
+    - [ ] Close chat screen and reopen, verify state restored correctly
+  - [ ] 10.6 Test edge cases and error handling
+    - [ ] Test very long messages (500+ characters)
+    - [ ] Test special characters and emojis in messages
+    - [ ] Test sending to offline user (messages queue on their device)
+    - [ ] Test network interruption during message send
+    - [ ] Verify error messages display correctly
+  - [ ] 10.7 UI polish and refinements
+    - [ ] Verify all animations are smooth
+    - [ ] Test dark mode appearance
+    - [ ] Check VoiceOver accessibility
+    - [ ] Verify dynamic type scaling works
+    - [ ] Polish empty states and loading indicators
+    - [ ] Ensure consistent spacing and alignment
+  - [ ] 10.8 Performance optimization
+    - [ ] Profile message list scrolling performance with 200+ messages
+    - [ ] Verify no memory leaks from listeners
+    - [ ] Check Firestore read/write counts are reasonable
+    - [ ] Optimize any slow queries or operations
+  - [ ] 10.9 Update documentation
+    - [ ] Mark completed tasks in this file as [x]
+    - [ ] Update progress.md in memory-bank
+    - [ ] Document any discovered issues or future improvements
+    - [ ] Update README with testing instructions if needed
+
