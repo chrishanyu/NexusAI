@@ -32,16 +32,25 @@ class MessageService {
         senderName: String,
         localId: String
     ) async throws -> String {
+        // Get conversation to retrieve participant IDs
+        let conversationRef = db.collection(Constants.Collections.conversations)
+            .document(conversationId)
+        let conversationDoc = try await conversationRef.getDocument()
+        guard let participantIds = conversationDoc.data()?["participantIds"] as? [String] else {
+            throw NSError(domain: "MessageService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to get participant IDs"])
+        }
+        
         // Create message data with server timestamp
+        // Mark as delivered immediately since it's successfully written to Firebase
         let messageData: [String: Any] = [
             "conversationId": conversationId,
             "senderId": senderId,
             "senderName": senderName,
             "text": text,
             "timestamp": FieldValue.serverTimestamp(),
-            "status": MessageStatus.sent.rawValue,
+            "status": MessageStatus.delivered.rawValue,
             "readBy": [senderId],
-            "deliveredTo": [],
+            "deliveredTo": participantIds, // Mark as delivered to all participants immediately
             "localId": localId
         ]
         
@@ -59,9 +68,9 @@ class MessageService {
             senderName: senderName,
             text: text,
             timestamp: Date(), // Use current time for lastMessage display
-            status: .sent,
+            status: .delivered,
             readBy: [senderId],
-            deliveredTo: [],
+            deliveredTo: participantIds,
             localId: localId
         )
         

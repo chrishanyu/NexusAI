@@ -244,7 +244,7 @@ class ChatViewModel: ObservableObject {
                         if let index = allMessages.firstIndex(where: { $0.localId == localId }) {
                             var updatedMessage = allMessages[index]
                             updatedMessage.id = messageId
-                            updatedMessage.status = .sent
+                            updatedMessage.status = .delivered // Message is delivered once written to Firebase
                             allMessages[index] = updatedMessage
                         }
                     }
@@ -442,9 +442,6 @@ class ChatViewModel: ObservableObject {
                 
                 // Cache messages to local storage for offline access
                 self.cacheMessagesToLocalStorage(messages)
-                
-                // Mark messages as delivered if current user is not the sender
-                self.markMessagesAsDelivered(messages)
             }
         }
     }
@@ -508,35 +505,6 @@ class ChatViewModel: ObservableObject {
             } catch {
                 print("⚠️ Failed to cache messages: \(error.localizedDescription)")
                 // Silent failure - caching is best-effort
-            }
-        }
-    }
-    
-    /// Mark messages as delivered if the current user is not the sender
-    /// - Parameter messages: Messages to check and mark as delivered
-    private func markMessagesAsDelivered(_ messages: [Message]) {
-        Task {
-            for message in messages {
-                // Only mark messages where current user is NOT the sender
-                guard message.senderId != currentUserId else { continue }
-                
-                // Only mark if not already delivered to this user
-                guard !message.deliveredTo.contains(currentUserId) else { continue }
-                
-                // Only mark if message has a Firestore ID
-                guard let messageId = message.id else { continue }
-                
-                do {
-                    try await messageService.markMessageAsDelivered(
-                        conversationId: conversationId,
-                        messageId: messageId,
-                        userId: currentUserId
-                    )
-                    print("✅ Marked message \(messageId) as delivered")
-                } catch {
-                    print("⚠️ Failed to mark message as delivered: \(error.localizedDescription)")
-                    // Silent failure - delivery status is best-effort
-                }
             }
         }
     }
