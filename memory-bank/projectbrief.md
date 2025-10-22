@@ -96,8 +96,8 @@ NexusAI/
 
 ## Current Status
 
-**Phase:** Core Messaging Complete (PRs #5-8 ✅)  
-**Completed:** Project setup, Firebase configuration, core models, full services layer, Google Sign-In authentication, conversation list, chat UI, message sending with optimistic UI, real-time message sync, offline queue, pagination  
-**Next:** Integration testing and polish (Task 10), then group chat and notifications  
-**Progress:** 8/18 PRs complete (44%) - Ahead of schedule for MVP
+**Phase:** Advanced Features (PR #12 Group Chat ✅)  
+**Completed:** Project setup, Firebase configuration, core models, full services layer, Google Sign-In authentication, conversation list, chat UI, message sending with optimistic UI, real-time message sync, offline queue, pagination, **GROUP CHAT with participant management**  
+**Next:** Read receipts full implementation (PR #10), Push notifications (PR #13)  
+**Progress:** 10/12 critical PRs complete (83%) - On track for MVP completion
 
