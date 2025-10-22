@@ -54,11 +54,20 @@ class ConversationListViewModel: ObservableObject {
     /// Firestore database reference
     private let db = FirebaseService.shared.db
     
+    /// Lazy presence service - created on first access (after Firebase is configured)
+    private lazy var presenceService = PresenceService()
+    
     /// Firestore listener registration for cleanup
     private var conversationListener: ListenerRegistration?
     
+    /// Presence listener registration for cleanup
+    private var presenceListener: ListenerRegistration?
+    
     /// Combine cancellables
     private var cancellables = Set<AnyCancellable>()
+    
+    /// Dictionary tracking online status of users (userId -> isOnline)
+    @Published var userPresenceMap: [String: Bool] = [:]
     
     // MARK: - Computed Properties
     
@@ -107,10 +116,12 @@ class ConversationListViewModel: ObservableObject {
         listenToConversations()
     }
     
-    /// Clean up Firestore listener when view model is deallocated
+    /// Clean up Firestore listeners when view model is deallocated
     deinit {
         conversationListener?.remove()
         conversationListener = nil
+        presenceListener?.remove()
+        presenceListener = nil
     }
     
     // MARK: - Public Methods
@@ -250,6 +261,9 @@ class ConversationListViewModel: ObservableObject {
         Task {
             await enrichMissingParticipantInfo()
         }
+        
+        // Update presence listeners for new conversations
+        startPresenceListening()
     }
     
     /// Load cached conversations from local storage
@@ -426,6 +440,38 @@ class ConversationListViewModel: ObservableObject {
             
             // Replace entire array to trigger SwiftUI update
             self.conversations = updatedConversations
+        }
+    }
+    
+    // MARK: - Presence Tracking
+    
+    /// Start listening to presence for all conversation participants
+    private func startPresenceListening() {
+        // Remove existing listener if any
+        presenceListener?.remove()
+        presenceListener = nil
+        
+        // Collect all unique user IDs from conversations (excluding current user)
+        var allParticipantIds = Set<String>()
+        for conversation in conversations {
+            for participantId in conversation.participantIds where participantId != currentUserId {
+                allParticipantIds.insert(participantId)
+            }
+        }
+        
+        // Only set up listener if we have participants to track
+        guard !allParticipantIds.isEmpty else { return }
+        
+        // Convert to array for Firestore query (limit to 10 due to Firestore 'in' query limitation)
+        let participantIdsArray = Array(allParticipantIds.prefix(10))
+        
+        // Set up presence listener
+        presenceListener = presenceService.listenToMultiplePresence(userIds: participantIdsArray) { [weak self] presenceMap in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                self.userPresenceMap = presenceMap
+                print("👥 Presence updated for \(presenceMap.count) users")
+            }
         }
     }
 }

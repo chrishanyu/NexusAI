@@ -19,6 +19,9 @@ struct NexusApp: App {
     @StateObject private var notificationManager = NotificationManager()
     @StateObject private var bannerManager: NotificationBannerManager
     
+    // Scene phase for handling app lifecycle
+    @Environment(\.scenePhase) private var scenePhase
+    
     init() {
         FirebaseApp.configure()
         
@@ -64,6 +67,41 @@ struct NexusApp: App {
                 // Not authenticated - show login screen
                 LoginView()
                     .environmentObject(authViewModel)
+            }
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            handleScenePhaseChange(from: oldPhase, to: newPhase)
+        }
+    }
+    
+    // MARK: - Scene Phase Handling
+    
+    /// Handle app lifecycle changes for presence tracking
+    private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
+        guard let userId = authViewModel.currentUser?.id else { return }
+        
+        Task {
+            // Create presence service instance here (after Firebase is configured)
+            let presenceService = PresenceService()
+            
+            switch newPhase {
+            case .active:
+                // App became active - set user online
+                try? await presenceService.setUserOnline(userId: userId)
+                print("👥 App became active - user set to online")
+                
+            case .background:
+                // App went to background - set user offline
+                try? await presenceService.setUserOffline(userId: userId)
+                print("👥 App went to background - user set to offline")
+                
+            case .inactive:
+                // App is temporarily inactive (e.g., phone call)
+                // Don't change presence status
+                break
+                
+            @unknown default:
+                break
             }
         }
     }

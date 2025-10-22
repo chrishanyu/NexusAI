@@ -14,6 +14,7 @@ struct ConversationRowView: View {
     let conversation: Conversation
     let currentUserId: String
     let unreadCount: Int
+    let userPresenceMap: [String: Bool]
     
     // MARK: - Body
     
@@ -143,9 +144,16 @@ struct ConversationRowView: View {
     
     /// Whether the other participant is online (only for direct chats)
     private var isOnline: Bool {
-        // This will be enhanced when we implement presence tracking
-        // For now, return false as placeholder
-        return false
+        // Only check for direct chats
+        guard conversation.type == .direct else { return false }
+        
+        // Get the other participant's ID
+        guard let otherUserId = conversation.participantIds.first(where: { $0 != currentUserId }) else {
+            return false
+        }
+        
+        // Look up their online status in the presence map
+        return userPresenceMap[otherUserId] ?? false
     }
     
     /// Badge text to display (handles "99+" logic)
@@ -230,7 +238,8 @@ struct ConversationRowView: View {
                 updatedAt: Date().addingTimeInterval(-300)
             ),
             currentUserId: "user2",
-            unreadCount: 3
+            unreadCount: 3,
+            userPresenceMap: ["user1": true] // John Doe is online
         )
         
         ConversationRowView(
@@ -260,7 +269,8 @@ struct ConversationRowView: View {
                 updatedAt: Date().addingTimeInterval(-3600)
             ),
             currentUserId: "user3",
-            unreadCount: 0
+            unreadCount: 0,
+            userPresenceMap: ["user1": false] // Jane Smith is offline
         )
         
         ConversationRowView(
@@ -285,7 +295,8 @@ struct ConversationRowView: View {
                 updatedAt: Date().addingTimeInterval(-86400)
             ),
             currentUserId: "user4",
-            unreadCount: 150
+            unreadCount: 150,
+            userPresenceMap: [:] // No presence data
         )
     }
     .listStyle(.plain)
@@ -324,7 +335,8 @@ struct ConversationRowView: View {
                 updatedAt: Date().addingTimeInterval(-600)
             ),
             currentUserId: "user3",
-            unreadCount: 12
+            unreadCount: 12,
+            userPresenceMap: [:] // Groups don't show presence
         )
         
         ConversationRowView(
@@ -345,7 +357,8 @@ struct ConversationRowView: View {
                 updatedAt: Date().addingTimeInterval(-7200)
             ),
             currentUserId: "user3",
-            unreadCount: 0
+            unreadCount: 0,
+            userPresenceMap: [:] // Groups don't show presence
         )
     }
     .listStyle(.plain)
@@ -380,7 +393,8 @@ struct ConversationRowView: View {
                 updatedAt: Date()
             ),
             currentUserId: "user2",
-            unreadCount: 1
+            unreadCount: 1,
+            userPresenceMap: ["user1": true]
         )
         
         ConversationRowView(
@@ -410,7 +424,8 @@ struct ConversationRowView: View {
                 updatedAt: Date().addingTimeInterval(-300)
             ),
             currentUserId: "user2",
-            unreadCount: 42
+            unreadCount: 42,
+            userPresenceMap: ["user1": true]
         )
         
         ConversationRowView(
@@ -440,7 +455,8 @@ struct ConversationRowView: View {
                 updatedAt: Date().addingTimeInterval(-86400)
             ),
             currentUserId: "user2",
-            unreadCount: 0
+            unreadCount: 0,
+            userPresenceMap: ["user1": false]
         )
     }
     .listStyle(.plain)

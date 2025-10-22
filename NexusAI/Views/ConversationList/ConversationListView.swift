@@ -121,7 +121,8 @@ struct ConversationListView: View {
                     ConversationRowView(
                         conversation: conversation,
                         currentUserId: currentUserId,
-                        unreadCount: viewModel.conversationUnreadCounts[conversation.id ?? ""] ?? 0
+                        unreadCount: viewModel.conversationUnreadCounts[conversation.id ?? ""] ?? 0,
+                        userPresenceMap: viewModel.userPresenceMap
                     )
                 }
                 .listRowInsets(EdgeInsets(

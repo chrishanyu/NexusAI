@@ -33,7 +33,7 @@ class AuthService {
             email: email,
             displayName: displayName,
             profileImageUrl: nil,
-            isOnline: true,
+            isOnline: false, // Will be set online via updateOnlineStatus after creation
             lastSeen: Date(),
             createdAt: Date()
         )
@@ -138,25 +138,25 @@ class AuthService {
                 
                 if document.exists {
                     // Update existing user with latest Google data
+                    // Note: Don't update isOnline here - it's managed separately via updateOnlineStatus
                     try await userDoc.updateData([
                         "email": email,
                         "displayName": displayName,
                         "profileImageUrl": profileImageUrl as Any,
-                        "isOnline": true,
                         "lastSeen": FieldValue.serverTimestamp()
                     ])
                     
                     // Fetch and return updated user
                     return try await getUserProfile(userId: userId)
                 } else {
-                    // Create new user
+                    // Create new user with offline status (will be set online via updateOnlineStatus after creation)
                     let user = User(
                         id: userId,
                         googleId: firebaseUser.uid, // For Google Sign-In, googleId is same as uid
                         email: email,
                         displayName: displayName,
                         profileImageUrl: profileImageUrl,
-                        isOnline: true,
+                        isOnline: false,
                         lastSeen: Date(),
                         createdAt: Date()
                     )
