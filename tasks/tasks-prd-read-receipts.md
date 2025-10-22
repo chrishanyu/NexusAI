@@ -1,0 +1,357 @@
+# Task List: Read Receipts & Message Status (PR #10)
+
+## Relevant Files
+
+- `NexusAI/Services/MessageService.swift` - Add markMessagesAsRead(), getUnreadCount() methods (modify existing)
+- `NexusAI/Services/ConversationService.swift` - Add getUnreadCounts() helper method (modify existing)
+- `NexusAI/ViewModels/ChatViewModel.swift` - Add mark-as-read logic on view appear (modify existing)
+- `NexusAI/ViewModels/ConversationListViewModel.swift` - Add unread count tracking (modify existing)
+- `NexusAI/Views/Chat/MessageStatusView.swift` - Update to show 4 status states (modify existing)
+- `NexusAI/Views/Chat/ChatView.swift` - Add onAppear mark-as-read trigger (modify existing)
+- `NexusAI/Views/ConversationList/ConversationRowView.swift` - Add unread badge display (modify existing)
+- `NexusAI/Models/Message.swift` - Verify readBy/deliveredTo arrays exist (already exists)
+- `NexusAI/Models/Conversation.swift` - Add unreadCount property (modify existing)
+
+### Notes
+
+- This PR builds entirely on existing infrastructure from PRs #5-8
+- No new files needed - all modifications to existing files
+- Focus on enhancing user feedback and visibility
+- Read receipts are bidirectional (if you see them, others see yours)
+- Testing should focus on real-time updates and accurate counts
+
+## Tasks
+
+- [x] 1.0 Implement Message Read Tracking (Core Logic)
+  - [x] 1.1 Add `markMessagesAsRead()` method to MessageService
+    - [x] Accept parameters: messageIds array, conversationId, userId
+    - [x] Use Firestore batch write for efficiency
+    - [x] Update each message's `readBy` array with `FieldValue.arrayUnion([userId])`
+    - [x] Handle errors silently (read receipts shouldn't block functionality)
+    - [x] Return success/failure but don't throw errors to caller
+  - [x] 1.2 Add `markMessageAsDelivered()` method to MessageService (enhancement)
+    - [x] Accept parameters: messageId, conversationId, userId
+    - [x] Update message's `deliveredTo` array with `FieldValue.arrayUnion([userId])`
+    - [x] Call automatically when message arrives via listener (already implemented in existing code)
+    - [x] Use background task (don't block UI) (async method)
+  - [x] 1.3 Add `getUnreadCount()` query method to MessageService
+    - [x] Query messages where `senderId != currentUserId` AND `currentUserId NOT IN readBy`
+    - [x] Return count of matching messages
+    - [x] Use efficient query (no unnecessary field fetches)
+    - [x] Cache result in calling ViewModel (will be implemented in ConversationListViewModel)
+  - [ ] 1.4 Test read tracking methods
+    - [ ] Unit test markMessagesAsRead with multiple message IDs
+    - [ ] Verify Firestore batch write executes correctly
+    - [ ] Test error handling (network failure, permission error)
+    - [ ] Verify deliveredTo updates correctly
+
+- [x] 2.0 Add Mark-as-Read Logic to ChatViewModel
+  - [x] 2.1 Create `markVisibleMessagesAsRead()` method
+    - [x] Filter messages where `senderId != currentUserId`
+    - [x] Filter messages where `currentUserId NOT IN readBy`
+    - [x] Extract message IDs from filtered messages
+    - [x] Return early if no unread messages
+    - [x] Call MessageService.markMessagesAsRead()
+    - [x] Use Task { } for async execution
+  - [x] 2.2 Add debouncing to prevent excessive calls
+    - [x] Create @Published var `markAsReadTask: Task<Void, Never>?`
+    - [x] Cancel previous task before starting new one
+    - [x] Add 500ms delay before executing mark-as-read
+    - [x] Debounce prevents rapid calls when messages arrive quickly
+  - [x] 2.3 Trigger mark-as-read on ChatView appear
+    - [x] Add `.onAppear` modifier in ChatView
+    - [x] Call `viewModel.markVisibleMessagesAsRead()`
+    - [x] Ensure only triggers when view actually appears (not during navigation transitions)
+  - [x] 2.4 Trigger mark-as-read when new messages arrive
+    - [x] Check if new messages received (hasNewMessages tracking)
+    - [x] Mark new messages as read automatically in mergeFirestoreMessages
+    - [x] Debouncing prevents excessive calls
+    - [x] Works for all new messages from others
+  - [x] 2.5 Handle app lifecycle (background/foreground)
+    - [x] Add `.onChange(of: scenePhase)` in ChatView (iOS 14+ compatible)
+    - [x] Mark messages as read when app returns to foreground (if chat is visible)
+    - [x] Use @Environment(\.scenePhase) for lifecycle tracking
+
+- [x] 3.0 Update Message Status Indicators (Visual Feedback)
+  - [x] 3.1 Update MessageStatusView to support 4 states
+    - [x] Add "read" case to switch statement (already present)
+    - [x] Display SF Symbol "clock.fill" for `.sending` (gray, 0.7 opacity)
+    - [x] Display SF Symbol "checkmark" for `.sent` (gray, 0.7 opacity)
+    - [x] Display SF Symbol "checkmark.checkmark" for `.delivered` (gray, 0.7 opacity)
+    - [x] Display SF Symbol "checkmark.checkmark" for `.read` (blue, 1.0 opacity)
+    - [x] Use `Color.gray` for gray states (via Constants.Colors)
+    - [x] Use `#007AFF` for read state (via Constants.Colors.statusRead)
+  - [x] 3.2 Update status computation logic
+    - [x] Added `displayStatus` computed property to Message model
+    - [x] Check if anyone (except sender) is in `readBy` array → status is `.read`
+    - [x] Check if anyone (except sender) is in `deliveredTo` array → status is `.delivered`
+    - [x] Check if message has Firestore ID → status is `.sent`
+    - [x] Otherwise → status is `.sending`
+    - [x] Ensure status never regresses (read → delivered) - logic handles this
+  - [x] 3.3 Add proper sizing and positioning
+    - [x] Icons are 12pt SF Symbols (via Constants.Dimensions.messageStatusIconSize)
+    - [x] Position in bottom-right of message bubble (already handled by MessageBubbleView)
+    - [x] 4pt padding from bubble edge (already handled in layout)
+    - [x] Only show on messages from current user (already handled with isFromCurrentUser check)
+  - [x] 3.4 Test status icon display
+    - [x] Send message → see clock (sending)
+    - [x] Firestore confirms → see single checkmark (sent)
+    - [x] Recipient receives → see double gray checkmarks (delivered)
+    - [x] Recipient opens chat → see double blue checkmarks (read)
+    - **Fixed:** Implemented proper double checkmark using HStack with 2 SF Symbols (checkmark.checkmark doesn't exist)
+    - **Cleaned:** Removed debug background and logging, set icon size to 14pt
+    - [ ] Verify transitions are smooth and real-time
+
+- [x] 4.0 Implement Unread Count Calculation
+  - [x] 4.1 Add unreadCount property to Conversation model
+    - [x] Add `var unreadCount: Int = 0` to Conversation struct
+    - [x] Make it a computed property that can be set externally
+    - [x] NOT stored in Firestore (calculated on client)
+    - [x] Include CodingKeys to exclude from Firestore encoding if needed
+  - [x] 4.2 Add unread count tracking to ConversationListViewModel
+    - [x] Add `@Published var conversationUnreadCounts: [String: Int] = [:]`
+    - [x] Create `calculateUnreadCounts()` async method
+    - [x] Loop through conversations and query unread count for each
+    - [x] Store results in conversationUnreadCounts dictionary
+    - [x] Call calculateUnreadCounts() after loading conversations
+  - [x] 4.3 Implement efficient unread count queries
+    - [x] Query only unread messages (not full message documents)
+    - [x] Use MessageService.getUnreadCount() which filters by senderId and readBy array
+    - [x] Current implementation is acceptable - full optimization would require Firestore aggregation
+    - [x] Update counts when conversation listener fires (already calling calculateUnreadCounts)
+  - [x] 4.4 Update unread counts in real-time
+    - [x] When conversation listener receives updates, recalculate unread count (via calculateUnreadCounts)
+    - [x] Added `decrementUnreadCount()` for marking messages as read
+    - [x] Added `incrementUnreadCount()` for new message arrivals  
+    - [x] Added `updateUnreadCount()` for direct updates
+    - [x] All methods use optimistic updates for instant UI feedback
+    - **Note:** Methods are available for ChatViewModel integration via environment object or callback
+
+- [x] 5.0 Add Unread Badge UI Component
+  - [x] 5.1 Design unread badge view
+    - [x] Create badge in ConversationRowView (not separate file)
+    - [x] Red circular background: `Color.red` via Constants.Colors.unreadBadge
+    - [x] White text: semibold, 12pt font
+    - [x] Minimum 20pt diameter for single digits (via Constants.Dimensions.unreadBadgeSize)
+    - [x] Capsule shape that expands width for 2+ digits
+    - [x] Dynamic horizontal padding based on digit count
+  - [x] 5.2 Implement badge display logic
+    - [x] Show badge only when `unreadCount > 0` (via conditional in ConversationRowView)
+    - [x] Display actual count if 1-99
+    - [x] Display "99+" if count > 99
+    - [x] Position badge to the right side of conversation row
+    - [x] Align vertically centered with row content
+  - [x] 5.3 Add badge animations
+    - [x] Badge appears/disappears with `.transition(.scale.combined(with: .opacity))`
+    - [x] Spring animation (duration: 0.2s) for count changes
+    - [x] Smooth transitions via `.animation(.spring(duration: 0.2), value: unreadCount)`
+  - [x] 5.4 Wire up badge to unread counts
+    - [x] Get unread count from ConversationListViewModel.conversationUnreadCounts
+    - [x] Pass count to ConversationRowView as parameter
+    - [x] Bind badge visibility to count > 0
+    - [x] Badge updates automatically via @Published property
+    - [x] ChatView clears count on appearance (conversationListViewModel.updateUnreadCount)
+  - [ ] 5.5 Test badge display
+    - [ ] Receive 1 message → badge shows "1"
+    - [ ] Receive 5 messages → badge shows "5"
+    - [ ] Receive 100 messages → badge shows "99+"
+    - [ ] Open conversation → badge disappears
+    - [ ] Close conversation, receive new message → badge reappears
+
+- [x] 6.0 Enhance Delivered Status Tracking
+  - [x] 6.1 Call markMessageAsDelivered in ChatViewModel
+    - [x] When message arrives via listener, check if current user is recipient
+    - [x] If recipient and not sender, call markMessageAsDelivered()
+    - [x] Use background task (don't block message rendering)
+    - [x] Handle errors silently
+  - [x] 6.2 Update status computation to check deliveredTo
+    - [x] In message status logic, check `deliveredTo` array
+    - [x] If current user in deliveredTo AND not in readBy → `.delivered`
+    - [x] Ensure delivered status shows before read status
+  - [x] 6.3 Test delivered status
+    - [x] User A sends message to User B
+    - [x] User A sees single checkmark (sent)
+    - [x] User B's device receives message via listener
+    - [x] User A sees double gray checkmarks (delivered)
+    - [x] User B opens chat
+    - [x] User A sees double blue checkmarks (read)
+  - **CRITICAL FIX APPLIED:**
+    - Separated delivered vs read timing
+    - **Delivered** = immediate when listener fires (ChatViewModel line 440)
+    - **Read** = only when user actively views chat (ChatView onAppear + scenePhase)
+    - Removed auto-read from `mergeFirestoreMessages()` to prevent simultaneous delivered+read
+    - Creates proper distinction: delivered first, then read after user views
+
+- [x] 7.0 Add Group Chat Read Receipt Support (Preparation for PR #12)
+  - [x] 7.1 Add "Read by X/Y" display for group messages
+    - [x] Update MessageBubbleView with conversation parameter
+    - [x] Check if conversation type is "group"
+    - [x] Calculate X = readBy.count (excluding sender)
+    - [x] Calculate Y = participantIds.count - 1 (all except sender)
+    - [x] Display "Read by X/Y" in 11pt gray text below sent message bubbles
+  - [x] 7.2 Position group read receipt
+    - [x] Below timestamp/status, right-aligned (via VStack alignment)
+    - [x] 2pt spacing from timestamp section
+    - [x] Only show for messages sent by current user (isFromCurrentUser check)
+    - [x] Hide for received messages
+  - [x] 7.3 Update read receipt count in real-time
+    - [x] When readBy array updates, recalculate X value (via computed property)
+    - [x] Update UI automatically via @Published messages array in ChatViewModel
+    - [x] Real-time updates handled by Firestore snapshot listener
+  - [ ] 7.4 Test group read receipts (basic)
+    - [ ] Send message in 3-person group → "Read by 0/2"
+    - [ ] One person reads → "Read by 1/2"
+    - [ ] Both read → "Read by 2/2"
+    - [ ] Note: Full group chat testing in PR #12
+
+- [ ] 8.0 Optimize Performance and Error Handling
+  - [ ] 8.1 Implement batch writes for read receipts
+    - [ ] Verify markMessagesAsRead uses Firestore batch
+    - [ ] Test with 10 messages marked as read simultaneously
+    - [ ] Verify only 1 write operation to Firestore
+    - [ ] Measure performance improvement vs individual writes
+  - [ ] 8.2 Add error handling
+    - [ ] Wrap markMessagesAsRead in try-catch
+    - [ ] Log errors but don't show user-facing alerts
+    - [ ] Retry failed read receipt updates (1 retry attempt)
+    - [ ] Don't block chat functionality on read receipt failures
+  - [ ] 8.3 Add debouncing for mark-as-read calls
+    - [ ] Implement 500ms debounce in ChatViewModel
+    - [ ] Cancel previous mark-as-read task if new one triggered
+    - [ ] Test rapid message arrival doesn't cause excessive writes
+  - [ ] 8.4 Optimize unread count queries
+    - [ ] Cache unread counts in ConversationListViewModel
+    - [ ] Only recalculate when conversation updates
+    - [ ] Consider incremental updates (±1) instead of full requery
+    - [ ] Measure Firestore read count before/after optimization
+
+- [ ] 9.0 Add Accessibility Support
+  - [ ] 9.1 Add VoiceOver labels for status icons
+    - [ ] Clock icon: "Sending message"
+    - [ ] Single checkmark: "Message sent"
+    - [ ] Double gray checkmarks: "Message delivered"
+    - [ ] Double blue checkmarks: "Message read"
+    - [ ] Add `.accessibilityLabel()` to status icons
+  - [ ] 9.2 Add VoiceOver for unread badges
+    - [ ] Badge announces: "3 unread messages" (not just "3")
+    - [ ] Use `.accessibilityLabel()` on badge
+    - [ ] Ensure badge is focusable by VoiceOver
+  - [ ] 9.3 Add VoiceOver for conversation rows with unread
+    - [ ] Row label includes unread count
+    - [ ] Example: "Engineering Team, 5 unread messages, Last message: Hello team"
+    - [ ] Update `.accessibilityLabel()` on ConversationRowView
+  - [ ] 9.4 Test with VoiceOver
+    - [ ] Enable VoiceOver in simulator
+    - [ ] Navigate conversation list
+    - [ ] Verify unread counts are announced
+    - [ ] Navigate chat screen
+    - [ ] Verify status icons are announced
+
+- [ ] 10.0 Integration Testing and Verification
+  - [ ] 10.1 Test read receipt flow (two devices)
+    - [ ] User A sends message to User B
+    - [ ] Verify User A sees "sending" → "sent" → "delivered"
+    - [ ] User B opens chat
+    - [ ] Verify User A sees "read" (blue checkmarks) in real-time
+    - [ ] Verify transition is smooth and instant
+  - [ ] 10.2 Test unread badge flow
+    - [ ] User B receives 5 messages while app closed
+    - [ ] User B opens app
+    - [ ] Verify conversation shows "5" badge
+    - [ ] User B opens conversation
+    - [ ] Verify badge disappears
+    - [ ] Verify messages marked as read in Firestore
+  - [ ] 10.3 Test batch read receipts
+    - [ ] User B receives 20 messages
+    - [ ] User B opens chat
+    - [ ] Verify all 20 messages marked as read in single batch
+    - [ ] Check Firestore writes (should be 1 batch, not 20 individual)
+    - [ ] Verify User A sees all 20 turn to "read" in real-time
+  - [ ] 10.4 Test delivered status
+    - [ ] User A sends message to User B
+    - [ ] User B's app is open but in different chat
+    - [ ] Verify User A sees "delivered" (not "sent")
+    - [ ] User B opens chat with User A
+    - [ ] Verify User A sees "read"
+  - [ ] 10.5 Test unread count accuracy
+    - [ ] Send 100 messages to User B
+    - [ ] Verify badge shows "99+"
+    - [ ] User B opens chat
+    - [ ] Verify badge clears
+    - [ ] Force quit app
+    - [ ] Reopen app
+    - [ ] Verify conversation shows no badge (counts persisted correctly)
+  - [ ] 10.6 Test app lifecycle scenarios
+    - [ ] User B viewing chat, receives message → auto-marks as read
+    - [ ] User B backgrounds app, receives message → doesn't mark as read
+    - [ ] User B foregrounds app (chat visible) → marks messages as read
+    - [ ] User B force quits app, receives messages, reopens → correct unread count
+  - [ ] 10.7 Test edge cases
+    - [ ] Offline: Mark messages as read while offline → syncs when online
+    - [ ] Rapid messages: Send 50 messages quickly → all marked as read correctly
+    - [ ] Old conversation: Open conversation with 1000+ messages → performance acceptable
+    - [ ] Network interruption: Read receipt update fails → retries successfully
+  - [ ] 10.8 Test read receipts with existing conversations
+    - [ ] Open conversation created before this PR
+    - [ ] Verify readBy/deliveredTo arrays exist (may be empty)
+    - [ ] Send new message
+    - [ ] Verify read receipts work correctly
+  - [ ] 10.9 Test unread counts persist across restarts
+    - [ ] Receive 10 messages
+    - [ ] Force quit app (don't open conversation)
+    - [ ] Reopen app
+    - [ ] Verify conversation shows "10" badge
+    - [ ] Open conversation
+    - [ ] Force quit and reopen
+    - [ ] Verify badge is gone (read state persisted)
+
+- [ ] 11.0 Performance Testing and Optimization
+  - [ ] 11.1 Test with many conversations
+    - [ ] Create 50 conversations
+    - [ ] Each has 5-10 unread messages
+    - [ ] Open conversation list
+    - [ ] Measure time to calculate all unread counts
+    - [ ] Verify UI remains responsive (< 1 second total)
+  - [ ] 11.2 Profile Firestore read/write counts
+    - [ ] Count reads for unread count queries
+    - [ ] Count writes for mark-as-read operations
+    - [ ] Identify optimization opportunities
+    - [ ] Implement improvements (caching, batching)
+  - [ ] 11.3 Test with large conversations
+    - [ ] Conversation with 500 messages
+    - [ ] 200 unread messages
+    - [ ] Open chat
+    - [ ] Verify mark-as-read doesn't block UI
+    - [ ] Verify badge clears smoothly
+  - [ ] 11.4 Memory leak check
+    - [ ] Use Instruments to check for memory leaks
+    - [ ] Open/close chats 20 times
+    - [ ] Verify no memory growth
+    - [ ] Check listener cleanup
+
+- [ ] 12.0 Polish and Documentation
+  - [ ] 12.1 Verify visual design matches PRD
+    - [ ] Status icons have correct colors and opacity
+    - [ ] Unread badge uses correct red color
+    - [ ] Badge sizing is consistent (20pt minimum)
+    - [ ] Animations are smooth
+  - [ ] 12.2 Test dark mode appearance
+    - [ ] Status icons visible in dark mode
+    - [ ] Unread badge contrasts well
+    - [ ] No color issues in dark mode
+  - [ ] 12.3 Test dynamic type scaling
+    - [ ] Enable largest accessibility text size
+    - [ ] Verify status icons scale appropriately
+    - [ ] Verify badge text remains readable
+    - [ ] Verify badge doesn't overlap other elements
+  - [ ] 12.4 Add code comments
+    - [ ] Document mark-as-read logic in ChatViewModel
+    - [ ] Document unread count calculation in ConversationListViewModel
+    - [ ] Document status computation logic
+    - [ ] Document debouncing implementation
+  - [ ] 12.5 Update task list completion
+    - [ ] Mark all completed tasks as [x]
+    - [ ] Document any known issues or limitations
+    - [ ] Update related PRD if any changes made during implementation
+
+

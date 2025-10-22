@@ -92,7 +92,8 @@ struct ConversationListView: View {
                 NavigationLink(value: conversation.id ?? "") {
                     ConversationRowView(
                         conversation: conversation,
-                        currentUserId: currentUserId
+                        currentUserId: currentUserId,
+                        unreadCount: viewModel.conversationUnreadCounts[conversation.id ?? ""] ?? 0
                     )
                 }
                 .listRowInsets(EdgeInsets(
@@ -107,6 +108,7 @@ struct ConversationListView: View {
         .navigationDestination(for: String.self) { conversationId in
             if !conversationId.isEmpty {
                 ChatView(conversationId: conversationId)
+                    .environmentObject(viewModel)
             } else {
                 Text("Invalid conversation")
                     .foregroundColor(.secondary)

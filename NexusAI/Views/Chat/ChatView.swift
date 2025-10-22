@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 /// Main chat screen for viewing and sending messages
 struct ChatView: View {
@@ -14,6 +15,8 @@ struct ChatView: View {
     @StateObject private var viewModel: ChatViewModel
     @State private var shouldAutoScroll = true
     @State private var scrollAnchorMessageId: String?
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var conversationListViewModel: ConversationListViewModel
     
     /// Initialize with conversation ID
     init(conversationId: String) {
@@ -67,6 +70,18 @@ struct ChatView: View {
                 Text(errorMessage)
             }
         }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            // Mark messages as read when app returns to foreground
+            if newPhase == .active && oldPhase == .background {
+                viewModel.markVisibleMessagesAsRead()
+                // Clear unread count in conversation list
+                conversationListViewModel.updateUnreadCount(for: viewModel.conversationId, count: 0)
+            }
+        }
+        .onDisappear {
+            // Clean up listeners when view is dismissed
+            viewModel.cleanupListeners()
+        }
     }
     
     // MARK: - Subviews
@@ -106,6 +121,7 @@ struct ChatView: View {
                                 message: message,
                                 isFromCurrentUser: message.senderId == viewModel.currentUserId,
                                 showSenderName: isGroupConversation,
+                                conversation: viewModel.conversation,
                                 onRetry: { localId in
                                     viewModel.retryMessage(localId: localId)
                                 }
@@ -143,6 +159,12 @@ struct ChatView: View {
             .onAppear {
                 // Scroll to bottom when view appears
                 scrollToBottom(proxy: proxy)
+                
+                // Mark messages as read when chat opens
+                viewModel.markVisibleMessagesAsRead()
+                
+                // Clear unread count in conversation list
+                conversationListViewModel.updateUnreadCount(for: viewModel.conversationId, count: 0)
             }
             .onChange(of: viewModel.allMessages.count) { oldCount, newCount in
                 // Only auto-scroll on new messages (not initial load)

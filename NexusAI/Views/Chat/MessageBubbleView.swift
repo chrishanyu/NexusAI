@@ -14,14 +14,16 @@ struct MessageBubbleView: View {
     let message: Message
     let isFromCurrentUser: Bool
     let showSenderName: Bool
+    let conversation: Conversation? // For group chat read receipts
     var onRetry: ((String) -> Void)? = nil // Callback for retry action
     
     // MARK: - Initialization
     
-    init(message: Message, isFromCurrentUser: Bool, showSenderName: Bool = false, onRetry: ((String) -> Void)? = nil) {
+    init(message: Message, isFromCurrentUser: Bool, showSenderName: Bool = false, conversation: Conversation? = nil, onRetry: ((String) -> Void)? = nil) {
         self.message = message
         self.isFromCurrentUser = isFromCurrentUser
         self.showSenderName = showSenderName
+        self.conversation = conversation
         self.onRetry = onRetry
     }
     
@@ -76,11 +78,20 @@ struct MessageBubbleView: View {
                                 .foregroundColor(Constants.Colors.statusFailed)
                             }
                         } else {
-                            MessageStatusView(status: message.status)
+                            MessageStatusView(status: message.displayStatus)
                         }
                     }
                 }
                 .padding(.horizontal, 4)
+                
+                // Group chat read receipt (Read by X/Y)
+                if isFromCurrentUser, let groupReadReceipt = groupReadReceiptText {
+                    Text(groupReadReceipt)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 4)
+                        .padding(.top, 2)
+                }
             }
             
             if !isFromCurrentUser {
@@ -101,6 +112,29 @@ struct MessageBubbleView: View {
     /// Text color based on sender
     private var textColor: Color {
         isFromCurrentUser ? Constants.Colors.sentMessageText : Constants.Colors.receivedMessageText
+    }
+    
+    /// Group read receipt text ("Read by X/Y")
+    /// Only shown for group conversations and messages sent by current user
+    private var groupReadReceiptText: String? {
+        // Only show for group conversations
+        guard let conversation = conversation,
+              conversation.type == .group else {
+            return nil
+        }
+        
+        // Calculate X = number of people who read (excluding sender)
+        let readCount = message.readBy.filter { $0 != message.senderId }.count
+        
+        // Calculate Y = total participants (excluding sender)
+        let totalParticipants = conversation.participantIds.count - 1
+        
+        // Only show if there are other participants
+        guard totalParticipants > 0 else {
+            return nil
+        }
+        
+        return "Read by \(readCount)/\(totalParticipants)"
     }
 }
 

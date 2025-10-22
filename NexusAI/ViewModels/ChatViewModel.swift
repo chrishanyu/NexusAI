@@ -42,8 +42,8 @@ class ChatViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    /// Conversation ID
-    private let conversationId: String
+    /// Conversation ID (internal for access from ChatView)
+    let conversationId: String
     
     /// Current authenticated user's ID
     var currentUserId: String {
@@ -82,6 +82,9 @@ class ChatViewModel: ObservableObject {
     /// Whether the device is offline
     @Published var isOffline: Bool = false
     
+    /// Task for debouncing mark-as-read calls
+    private var markAsReadTask: Task<Void, Never>?
+    
     // MARK: - Initialization
     
     /// Initialize with conversation ID
@@ -118,7 +121,61 @@ class ChatViewModel: ObservableObject {
         messageListener = nil
         errorDismissTimer?.invalidate()
         errorDismissTimer = nil
+        markAsReadTask?.cancel()
+        markAsReadTask = nil
         print("✅ Chat listeners cleaned up")
+    }
+    
+    /// Mark visible unread messages as read with debouncing
+    /// - Note: This method debounces calls by 800ms to prevent excessive Firestore writes
+    ///   and to allow delivered status to be visible before marking as read
+    func markVisibleMessagesAsRead() {
+        // Cancel any existing mark-as-read task (debouncing)
+        markAsReadTask?.cancel()
+        
+        // Create new debounced task
+        markAsReadTask = Task { @MainActor in
+            // Wait 800ms before executing (debounce + allow delivered status to show)
+            try? await Task.sleep(nanoseconds: 800_000_000) // 800ms
+            
+            // Check if task was cancelled during sleep
+            guard !Task.isCancelled else { return }
+            
+            // Filter messages to find unread messages
+            let unreadMessages = allMessages.filter { message in
+                // Only messages sent by others
+                guard message.senderId != currentUserId else { return false }
+                
+                // Only messages not already read by current user
+                guard !message.readBy.contains(currentUserId) else { return false }
+                
+                // Only messages with Firestore IDs
+                guard message.id != nil else { return false }
+                
+                return true
+            }
+            
+            // Extract message IDs
+            let messageIds = unreadMessages.compactMap { $0.id }
+            
+            // Return early if no messages to mark as read
+            guard !messageIds.isEmpty else { return }
+            
+            print("📖 Marking \(messageIds.count) messages as read...")
+            
+            // Call MessageService to mark messages as read (silent failure)
+            do {
+                try await messageService.markMessagesAsRead(
+                    messageIds: messageIds,
+                    conversationId: conversationId,
+                    userId: currentUserId
+                )
+                print("✅ Successfully marked \(messageIds.count) messages as read")
+            } catch {
+                // Silent failure - read receipts shouldn't block chat functionality
+                print("⚠️ Failed to mark messages as read: \(error.localizedDescription)")
+            }
+        }
     }
     
     /// Send a new message
@@ -421,6 +478,9 @@ class ChatViewModel: ObservableObject {
         
         // Sort messages by timestamp
         allMessages.sort { $0.timestamp < $1.timestamp }
+        
+        // NOTE: We no longer auto-mark messages as read here.
+        // Read status is only marked when user is actively viewing (ChatView lifecycle events)
     }
     
     /// Cache messages to local storage

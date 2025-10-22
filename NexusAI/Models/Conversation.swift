@@ -24,6 +24,24 @@ struct Conversation: Codable, Identifiable, Hashable {
     let createdAt: Date
     var updatedAt: Date? // Optional to handle null values from Firestore
     
+    // Client-side only - not stored in Firestore
+    var unreadCount: Int = 0
+    
+    // MARK: - Codable
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case type
+        case participantIds
+        case participants
+        case lastMessage
+        case groupName
+        case groupImageUrl
+        case createdAt
+        case updatedAt
+        // unreadCount is intentionally excluded - it's client-side only
+    }
+    
     struct ParticipantInfo: Codable, Hashable {
         let displayName: String
         let profileImageUrl: String?

@@ -62,7 +62,7 @@ struct Constants {
         static let messageInputMaxLines: Int = 4
         
         // Icons
-        static let messageStatusIconSize: CGFloat = 12
+        static let messageStatusIconSize: CGFloat = 14 // Subtle but visible (was 12, debug was 20)
         static let fabButtonSize: CGFloat = 56
         static let unreadBadgeSize: CGFloat = 20
         
