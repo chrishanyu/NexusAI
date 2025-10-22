@@ -14,8 +14,10 @@ struct ConversationListView: View {
     // MARK: - Properties
     
     @StateObject private var viewModel = ConversationListViewModel()
+    @EnvironmentObject var notificationManager: NotificationManager
     @State private var showingNewConversation = false
     @State private var showingNewGroup = false
+    @State private var navigationPath = NavigationPath()
     
     // Current user ID for passing to row views
     private var currentUserId: String {
@@ -25,7 +27,7 @@ struct ConversationListView: View {
     // MARK: - Body
     
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             Group {
                 // Main content
                 if viewModel.isLoading && viewModel.conversations.isEmpty {
@@ -92,6 +94,18 @@ struct ConversationListView: View {
             } message: {
                 if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
+                }
+            }
+            .onChange(of: notificationManager.pendingConversationId) { oldValue, newValue in
+                // Handle notification navigation
+                if let conversationId = newValue, !conversationId.isEmpty {
+                    print("📱 ConversationListView: Navigating to conversation from notification: \(conversationId)")
+                    
+                    // Add the conversation to the navigation path
+                    navigationPath.append(conversationId)
+                    
+                    // Clear the pending navigation
+                    notificationManager.clearPendingNavigation()
                 }
             }
         }

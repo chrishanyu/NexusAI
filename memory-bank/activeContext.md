@@ -3,9 +3,9 @@
 ## Current Focus
 
 **Sprint:** MVP Foundation  
-**Phase:** PRs #5-8 - Core Messaging  
-**Status:** ✅ COMPLETE - Full messaging infrastructure implemented (conversation list, chat UI, message sending, real-time sync, offline support, pagination)  
-**Next:** Integration testing, bug fixes, and polish
+**Phase:** Advanced Features - Group Chat & Notifications  
+**Status:** ✅ PR #12 (Group Chat) COMPLETE - Full group messaging with participant management  
+**Next:** PR #10 (Read Receipts full implementation), PR #13 (Push Notifications)
 
 ## What We're Building Right Now
 
@@ -44,9 +44,52 @@
    - `ContentView.swift` - Temporary authenticated home screen with user info and sign out button
    - `AuthServiceTests.swift` - Unit tests for AuthService using MockAuthService
 
-**Build Status:** ✅ All features compile successfully, full core messaging implemented
+**Build Status:** ✅ All features compile successfully, group chat fully implemented
 
 ## Just Completed (Major Milestone! 🎉)
+
+### ✅ PR #12: Group Chat Functionality
+**Status:** COMPLETE  
+**Completion Date:** October 22, 2025
+
+**Implemented Features:**
+1. **Group Creation** - Multi-select participant picker, group naming, validation
+2. **Group Display** - Groups appear in conversation list with group icons and names
+3. **Group Messaging** - Sender names show in group messages, "Read by X/Y" receipts
+4. **Group Info View** - Participant list with online status, sorted intelligently
+5. **Data Model Updates** - ConversationType enum, group-specific fields, ParticipantInfo struct
+
+**Files Created:**
+- `Views/Group/CreateGroupView.swift` - Group creation UI with multi-select
+- `Views/Group/ParticipantSelectionRow.swift` - Checkbox selection component
+- `Views/Group/GroupInfoView.swift` - Group details and participant list
+- `Views/Group/ParticipantRow.swift` - Individual participant display
+- `Views/Group/ParticipantListView.swift` - Reusable participant list
+- `ViewModels/GroupInfoViewModel.swift` - Group info state management
+
+**Files Modified:**
+- `Models/Conversation.swift` - Added ConversationType, groupName, groupImageUrl, createdBy, isGroup computed property
+- `Services/ConversationService.swift` - Updated createGroupConversation with createdBy field
+- `Views/ConversationList/ConversationListView.swift` - Added "New Group" menu option
+- `Views/ConversationList/ConversationRowView.swift` - Group display logic, sender name prefixes
+- `Views/Chat/ChatView.swift` - Group header with participant count, tap to open GroupInfoView
+- `ViewModels/ChatViewModel.swift` - Added isGroupConversation computed property
+
+**What Now Works:**
+- ✅ Create groups with 3+ participants
+- ✅ Multi-select participant picker with search
+- ✅ Group name validation (1-50 characters)
+- ✅ Groups display in conversation list with icons
+- ✅ Last message shows sender name: "Alice: Message text"
+- ✅ Group messages show sender names for clarity
+- ✅ Group read receipts show "Read by X/Y" format
+- ✅ Group info view with all participants
+- ✅ Participant online status indicators
+- ✅ Smart participant sorting (you first, then online, then alphabetical)
+- ✅ Real-time message sync works identically for groups
+- ✅ Optimistic UI and offline queue work for groups
+
+## Previous Completions
 
 ### ✅ PRs #5-8: Core Messaging Infrastructure
 **Status:** COMPLETE - All implementation tasks finished

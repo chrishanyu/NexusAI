@@ -23,22 +23,17 @@ class FirebaseService {
     // MARK: - Initialization
     private init() {
         // Firebase is initialized in the App file
-        // Here we just configure Firestore settings
-        self.db = Firestore.firestore()
-        self.auth = Auth.auth()
+        // Get Firestore instance
+        let firestoreInstance = Firestore.firestore()
         
-        configureFirestore()
-    }
-    
-    // MARK: - Configuration
-    private func configureFirestore() {
+        // Configure settings IMMEDIATELY after getting instance, before any use
         let settings = FirestoreSettings()
-        
-        // Enable offline persistence for local caching
-        // Cache size (100 MB)
         settings.cacheSettings = PersistentCacheSettings(sizeBytes: NSNumber(value: 100 * 1024 * 1024))
+        firestoreInstance.settings = settings
         
-        db.settings = settings
+        // Assign to properties
+        self.db = firestoreInstance
+        self.auth = Auth.auth()
     }
     
     // MARK: - Helper Methods

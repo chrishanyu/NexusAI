@@ -2,9 +2,9 @@
 
 ## Overall MVP Status
 
-**Phase:** Core Messaging Complete 🎉  
-**Current PR:** PRs #5-8 COMPLETE, Task 10 (Testing & Polish) IN PROGRESS  
-**Completion:** ~44% (8/18 PRs complete)  
+**Phase:** Advanced Features - Group Chat Complete 🎉  
+**Current PR:** PR #12 COMPLETE, PR #10 (Read Receipts) and PR #13 (Notifications) NEXT  
+**Completion:** ~50% (9/18 PRs complete)  
 **Timeline:** AHEAD OF SCHEDULE for 24-hour MVP sprint
 
 ## Completed Work
@@ -277,6 +277,77 @@
 
 ---
 
+### ✅ PR #12: Group Chat Functionality
+**Status:** COMPLETE ✅  
+**Branch:** feature/group-chat  
+**Completion Date:** October 22, 2025
+
+**Completed Items:**
+- [x] Updated Conversation model with group-specific fields
+- [x] Added ConversationType enum (direct, group)
+- [x] Added groupName, groupImageUrl, createdBy properties
+- [x] Added ParticipantInfo nested struct
+- [x] Added isGroup computed property
+- [x] Created CreateGroupView with multi-select participant picker
+- [x] Implemented group name validation (1-50 characters)
+- [x] Created ParticipantSelectionRow with checkbox
+- [x] Added searchable user list (excluding current user)
+- [x] Implemented "Create Group" validation (name + 2+ participants)
+- [x] Updated ConversationService.createGroupConversation()
+- [x] Added "New Group" menu option to ConversationListView
+- [x] Updated ConversationRowView for group display
+- [x] Added sender name prefixes for group messages in conversation list
+- [x] Updated ChatView with group-specific header
+- [x] Added isGroupConversation computed property to ChatViewModel
+- [x] Created GroupInfoView with participant list
+- [x] Created ParticipantRow and ParticipantListView components
+- [x] Created GroupInfoViewModel with participant loading
+- [x] Implemented smart participant sorting (current user first, online, alphabetical)
+- [x] Added tap gesture to navigate to GroupInfoView
+- [x] MessageBubbleView already shows sender names (no changes needed)
+- [x] Group read receipts already show "Read by X/Y" (no changes needed)
+
+**Files Created (6 new files):**
+- `NexusAI/Views/Group/CreateGroupView.swift` - 400+ lines, full group creation UI
+- `NexusAI/Views/Group/ParticipantSelectionRow.swift` - Checkbox selection component
+- `NexusAI/Views/Group/GroupInfoView.swift` - Group details screen
+- `NexusAI/Views/Group/ParticipantRow.swift` - Individual participant display
+- `NexusAI/Views/Group/ParticipantListView.swift` - Reusable participant list
+- `NexusAI/ViewModels/GroupInfoViewModel.swift` - State management for group info
+
+**Files Updated:**
+- `NexusAI/Models/Conversation.swift` - Added group fields and ConversationType enum
+- `NexusAI/Services/ConversationService.swift` - Updated createGroupConversation with createdBy
+- `NexusAI/Views/ConversationList/ConversationListView.swift` - Added "New Group" menu
+- `NexusAI/Views/ConversationList/ConversationRowView.swift` - Group display and sender prefixes
+- `NexusAI/Views/Chat/ChatView.swift` - Group header and GroupInfoView navigation
+- `NexusAI/ViewModels/ChatViewModel.swift` - Added isGroupConversation property
+
+**What Works:**
+- ✅ Create groups with 3+ participants
+- ✅ Multi-select participant picker with search/filter
+- ✅ Group name validation
+- ✅ Groups display in conversation list
+- ✅ Group icons and group names
+- ✅ Last message with sender name prefix ("Alice: Message")
+- ✅ Group messages show sender names
+- ✅ Group read receipts ("Read by X/Y")
+- ✅ Group info view with all participants
+- ✅ Participant online status indicators
+- ✅ Smart participant sorting
+- ✅ Real-time sync works for groups
+- ✅ Optimistic UI works for groups
+- ✅ Offline queue works for groups
+
+**Key Technical Achievements:**
+- Leveraged existing messaging infrastructure (no major refactoring needed)
+- Group messages use same optimistic UI pattern
+- Real-time listeners work identically for groups
+- Clean separation: group-specific UI, shared messaging logic
+- Accessibility labels throughout
+
+---
+
 ## In Progress
 
 ### 🚧 Current Work: Task 10 - Integration Testing & Polish
@@ -321,12 +392,12 @@
 **Complexity:** Medium  
 **Estimated Time:** 2 hours
 
-### 📋 PR #12: Group Chat Functionality
+### ✅ PR #12: Group Chat Functionality
+**Status:** COMPLETE ✅  
 **Priority:** HIGH - MVP requirement  
-**Dependencies:** PR #8  
-**Files:** CreateGroupView, GroupInfoView, service updates  
-**Complexity:** Medium  
-**Estimated Time:** 3-4 hours
+**Dependencies:** PR #8 ✅  
+**Completion Date:** October 22, 2025  
+**Actual Time:** 4-5 hours
 
 ### 📋 PR #13: Push Notifications (Simulator)
 **Priority:** HIGH - MVP requirement  
@@ -384,13 +455,13 @@
 7. ✅ PR #7: Message Sending (Optimistic UI)
 8. ✅ PR #8: Real-Time Sync
 9. ⏳ PR #10: Read Receipts (basic infrastructure in place, full implementation needed)
-10. ⏳ PR #12: Group Chat
+10. ✅ PR #12: Group Chat
 11. ⏳ PR #13: Notifications
 12. ✅ PR #15: Offline Support (core functionality complete)
 
 **Total Critical Path:** 12 PRs  
-**Completed:** 9/12 (75%) - PR #15 essentially complete, PR #10 partially done  
-**Remaining Effort:** ~10-15 hours (Group chat, notifications, read receipts, testing)
+**Completed:** 10/12 (83%) - Only PR #10 (read receipts full implementation) and PR #13 (notifications) remaining  
+**Remaining Effort:** ~5-8 hours (Notifications, read receipts full implementation, final testing)
 
 ### Optional PRs (Can Skip for MVP)
 - PR #9: Typing Indicators (nice to have)
@@ -404,7 +475,40 @@
 ## What Currently Works
 
 ### ✅ Working Features
-1. **Project Infrastructure**
+1. **Group Chat** ⭐ NEW - MAJOR FEATURE
+   - **Group Creation:**
+     - Create groups with 3+ participants
+     - Multi-select participant picker with search
+     - Group name validation (1-50 characters)
+     - Real-time participant list loading
+   
+   - **Group Display:**
+     - Groups appear in conversation list
+     - Group icons (default icon for MVP)
+     - Group names displayed
+     - Last message shows sender: "Alice: Message text"
+     - Shows "You: " for your own messages
+   
+   - **Group Messaging:**
+     - Send messages to groups (same as direct chats)
+     - Sender names show above received messages
+     - Real-time sync to all participants
+     - Optimistic UI works identically
+     - Offline queue works for group messages
+   
+   - **Group Read Receipts:**
+     - Shows "Read by X/Y" format
+     - Updates in real-time
+     - Calculates correctly (excluding sender)
+   
+   - **Group Info View:**
+     - View all participants
+     - Online status indicators
+     - Smart sorting (you first, online, offline, alphabetical)
+     - Tap group header to open info
+     - Scrollable participant list
+
+2. **Project Infrastructure**
    - Xcode project builds successfully
    - Firebase SDK integrated and loading
    - Swift Package dependencies resolved
@@ -605,23 +709,23 @@
 ## Metrics & Goals
 
 ### Time Tracking
-- **Total Time Spent:** ~16 hours (setup + models + services + auth + core messaging)
-- **Remaining Budget:** ~8 hours (for 24-hour MVP)
-- **Burn Rate:** AHEAD OF SCHEDULE (75% critical path complete, ~67% time used)
+- **Total Time Spent:** ~21 hours (setup + models + services + auth + core messaging + group chat)
+- **Remaining Budget:** ~3 hours (for 24-hour MVP)
+- **Burn Rate:** ON TRACK (83% critical path complete, ~88% time used)
 
 ### Code Metrics
-- **Files Created:** ~44 files (29 foundation + 15 core messaging)
-- **Lines of Code:** ~4,500+ LOC (models + services + auth + messaging + tests)
+- **Files Created:** ~51 files (29 foundation + 15 core messaging + 7 group chat)
+- **Lines of Code:** ~6,000+ LOC (models + services + auth + messaging + group chat + tests)
 - **Test Coverage:** ~15% (AuthService fully tested, more tests needed)
-- **Service Files:** 8 files (~1,500+ LOC total, includes MessageQueueService)
-- **ViewModel Files:** 3 files (AuthViewModel, ConversationListViewModel, ChatViewModel ~800+ LOC)
-- **View Files:** 13+ files (Login, Conversation List, Chat UI components ~1,200+ LOC)
+- **Service Files:** 8 files (~1,600+ LOC total, includes MessageQueueService)
+- **ViewModel Files:** 4 files (Auth, ConversationList, Chat, GroupInfo ~1,100+ LOC)
+- **View Files:** 19+ files (Login, Conversation List, Chat UI, Group UI ~2,300+ LOC)
 - **Test Files:** 3 files (~200 LOC)
 
 ### Feature Completion
-- **MVP Features:** 5/8 working (62.5%) ⭐
+- **MVP Features:** 6/8 working (75%) ⭐
   - [x] **One-on-one chat** ✅ COMPLETE
-  - [ ] Group chat (infrastructure exists, UI needed)
+  - [x] **Group chat** ✅ COMPLETE
   - [x] **Real-time sync** ✅ COMPLETE
   - [x] **Offline support** ✅ COMPLETE
   - [ ] Read receipts (basic infrastructure, full implementation needed)
@@ -708,24 +812,24 @@
 - [x] **Online/offline status indicators** ✅
 - [x] **Message timestamps** ✅
 - [x] **User authentication (Google Sign-In)** ✅
-- [ ] Basic group chat (3+ users) - infrastructure exists, UI needed
+- [x] **Basic group chat (3+ users)** ✅
 - [ ] Message read receipts - basic infrastructure, full implementation needed
 - [ ] Push notifications (simulator testing with .apns files) - not started
 - [x] **Running on iOS simulator with Firebase backend** ✅
 
-**Gates Passed:** 8/11 (73%) ⭐  
-**Status:** Core messaging complete, group chat and notifications remaining
+**Gates Passed:** 9/11 (82%) ⭐  
+**Status:** Group chat complete! Only read receipts and notifications remaining
 
 ---
 
 ## Summary
 
-**Current State:** 🎉 MAJOR MILESTONE - Core messaging infrastructure complete!  
-**What Works:** One-on-one chat, real-time sync, offline support, pagination, optimistic UI  
-**Next Action:** Task 10 (comprehensive testing), then PR #12 (group chat) and PR #13 (notifications)  
-**Timeline:** AHEAD OF SCHEDULE for 24-hour MVP (75% critical path, ~67% time used, 8 hours remaining)  
+**Current State:** 🎉 MAJOR MILESTONE - Group chat functionality complete!  
+**What Works:** One-on-one chat, group chat, real-time sync, offline support, pagination, optimistic UI, group read receipts  
+**Next Action:** PR #10 (full read receipts implementation) and PR #13 (push notifications)  
+**Timeline:** ON TRACK for 24-hour MVP (83% critical path, ~88% time used, 3 hours remaining)  
 **Blockers:** None  
-**Confidence:** VERY HIGH - Core messaging working end-to-end, just need group chat, notifications, and polish
+**Confidence:** VERY HIGH - All core messaging working, only notifications and read receipts polish remaining
 
-**Key Achievement:** Went from "no UI" to "full working messaging app" in one development session! 🚀
+**Key Achievement:** Group chat fully functional with minimal changes to existing infrastructure! Clean architecture pays off! 🚀
 

@@ -18,6 +18,7 @@ struct ChatView: View {
     @State private var showingGroupInfo = false
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var conversationListViewModel: ConversationListViewModel
+    @EnvironmentObject private var bannerManager: NotificationBannerManager
     
     /// Initialize with conversation ID
     init(conversationId: String) {
@@ -102,7 +103,14 @@ struct ChatView: View {
                 conversationListViewModel.updateUnreadCount(for: viewModel.conversationId, count: 0)
             }
         }
+        .onAppear {
+            // Set current conversation in banner manager to filter out banners
+            bannerManager.setCurrentConversation(id: viewModel.conversationId)
+        }
         .onDisappear {
+            // Clear current conversation in banner manager
+            bannerManager.setCurrentConversation(id: nil)
+            
             // Clean up listeners when view is dismissed
             viewModel.cleanupListeners()
         }
