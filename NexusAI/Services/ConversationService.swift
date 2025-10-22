@@ -44,6 +44,7 @@ class ConversationService {
             lastMessage: nil,
             groupName: nil,
             groupImageUrl: nil,
+            createdBy: userId,
             createdAt: Date(),
             updatedAt: Date()
         )
@@ -62,7 +63,8 @@ class ConversationService {
         creatorId: String,
         participantIds: [String],
         participantsInfo: [String: Conversation.ParticipantInfo],
-        groupName: String?
+        groupName: String?,
+        groupImageUrl: String? = nil
     ) async throws -> Conversation {
         // Ensure creator is included
         var allParticipantIds = Set(participantIds)
@@ -75,7 +77,8 @@ class ConversationService {
             participants: participantsInfo,
             lastMessage: nil,
             groupName: groupName,
-            groupImageUrl: nil,
+            groupImageUrl: groupImageUrl,
+            createdBy: creatorId,
             createdAt: Date(),
             updatedAt: Date()
         )

@@ -52,7 +52,13 @@ class ChatViewModel: ObservableObject {
     
     /// Current user's display name from conversation participants
     private var currentUserDisplayName: String {
-        conversation?.participants[currentUserId]?.displayName ?? "You"
+        let displayName = conversation?.participants[currentUserId]?.displayName ?? ""
+        return displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "You" : displayName
+    }
+    
+    /// Whether this is a group conversation
+    var isGroupConversation: Bool {
+        conversation?.type == .group
     }
     
     /// Message service
