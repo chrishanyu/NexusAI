@@ -111,7 +111,22 @@ struct ConversationRowView: View {
         } else {
             // Direct conversation - get other participant's name
             let otherParticipant = conversation.participants.first { $0.key != currentUserId }
-            return otherParticipant?.value.displayName ?? "Unknown User"
+            
+            // Check if we have participant info
+            if let displayName = otherParticipant?.value.displayName,
+               !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return displayName
+            }
+            
+            // Fallback: Try to get from participantIds if participant info is missing
+            // This provides a better UX while participant info is being loaded
+            if let otherUserId = conversation.participantIds.first(where: { $0 != currentUserId }),
+               !otherUserId.isEmpty {
+                // Show loading state instead of "Unknown User"
+                return "Loading..."
+            }
+            
+            return "Unknown User"
         }
     }
     
