@@ -21,11 +21,18 @@ struct Conversation: Codable, Identifiable, Hashable {
     var lastMessage: LastMessage?
     var groupName: String?
     var groupImageUrl: String?
+    var createdBy: String? // User ID of group creator
     let createdAt: Date
     var updatedAt: Date? // Optional to handle null values from Firestore
     
     // Client-side only - not stored in Firestore
     var unreadCount: Int = 0
+    
+    // MARK: - Computed Properties
+    
+    var isGroup: Bool {
+        type == .group
+    }
     
     // MARK: - Codable
     
@@ -37,6 +44,7 @@ struct Conversation: Codable, Identifiable, Hashable {
         case lastMessage
         case groupName
         case groupImageUrl
+        case createdBy
         case createdAt
         case updatedAt
         // unreadCount is intentionally excluded - it's client-side only

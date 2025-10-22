@@ -15,12 +15,18 @@ struct ChatView: View {
     @StateObject private var viewModel: ChatViewModel
     @State private var shouldAutoScroll = true
     @State private var scrollAnchorMessageId: String?
+    @State private var showingGroupInfo = false
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var conversationListViewModel: ConversationListViewModel
     
     /// Initialize with conversation ID
     init(conversationId: String) {
         _viewModel = StateObject(wrappedValue: ChatViewModel(conversationId: conversationId))
+    }
+    
+    /// Initialize with conversation object
+    init(conversation: Conversation) {
+        _viewModel = StateObject(wrappedValue: ChatViewModel(conversationId: conversation.id ?? ""))
     }
     
     // MARK: - Body
@@ -50,13 +56,31 @@ struct ChatView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                VStack(spacing: 2) {
-                    Text(conversationTitle)
-                        .font(.headline)
-                    
-                    Text(subtitleText)
-                        .font(.caption)
-                        .foregroundColor(subtitleColor)
+                if isGroupConversation {
+                    Button {
+                        showingGroupInfo = true
+                    } label: {
+                        VStack(spacing: 2) {
+                            Text(conversationTitle)
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            
+                            Text(subtitleText)
+                                .font(.caption)
+                                .foregroundColor(subtitleColor)
+                        }
+                    }
+                    .accessibilityLabel("View group info")
+                    .accessibilityHint("Tap to view group participants and details")
+                } else {
+                    VStack(spacing: 2) {
+                        Text(conversationTitle)
+                            .font(.headline)
+                        
+                        Text(subtitleText)
+                            .font(.caption)
+                            .foregroundColor(subtitleColor)
+                    }
                 }
             }
         }
@@ -81,6 +105,11 @@ struct ChatView: View {
         .onDisappear {
             // Clean up listeners when view is dismissed
             viewModel.cleanupListeners()
+        }
+        .sheet(isPresented: $showingGroupInfo) {
+            if let conversation = viewModel.conversation {
+                GroupInfoView(conversation: conversation)
+            }
         }
     }
     

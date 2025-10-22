@@ -164,8 +164,23 @@ struct ConversationRowView: View {
     
     /// Last message preview text
     private func lastMessagePreview(_ lastMessage: Conversation.LastMessage) -> String {
-        let prefix = lastMessage.senderId == currentUserId ? "You: " : ""
-        return prefix + lastMessage.text
+        // For group chats, always show sender name prefix
+        if conversation.type == .group {
+            let isFromCurrentUser = lastMessage.senderId.trimmingCharacters(in: .whitespacesAndNewlines) == currentUserId.trimmingCharacters(in: .whitespacesAndNewlines)
+            let prefix: String
+            
+            if isFromCurrentUser {
+                prefix = "You: "
+            } else {
+                let senderName = lastMessage.senderName.trimmingCharacters(in: .whitespacesAndNewlines)
+                prefix = senderName.isEmpty ? "" : "\(senderName): "
+            }
+            
+            return prefix + lastMessage.text
+        } else {
+            // For direct chats, don't show any prefix (it's obvious who sent what in 1-on-1 chats)
+            return lastMessage.text
+        }
     }
 }
 

@@ -15,6 +15,7 @@ struct ConversationListView: View {
     
     @StateObject private var viewModel = ConversationListViewModel()
     @State private var showingNewConversation = false
+    @State private var showingNewGroup = false
     
     // Current user ID for passing to row views
     private var currentUserId: String {
@@ -48,14 +49,24 @@ struct ConversationListView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingNewConversation = true
+                    Menu {
+                        Button {
+                            showingNewConversation = true
+                        } label: {
+                            Label("New Conversation", systemImage: "person")
+                        }
+                        
+                        Button {
+                            showingNewGroup = true
+                        } label: {
+                            Label("New Group", systemImage: "person.3")
+                        }
                     } label: {
                         Image(systemName: "square.and.pencil")
                             .font(.system(size: 20, weight: .medium))
                             .foregroundColor(Constants.Colors.primaryBlue)
                     }
-                    .accessibilityLabel("New conversation")
+                    .accessibilityLabel("New message")
                 }
             }
             .searchable(
@@ -70,6 +81,9 @@ struct ConversationListView: View {
             }
             .sheet(isPresented: $showingNewConversation) {
                 NewConversationView()
+            }
+            .sheet(isPresented: $showingNewGroup) {
+                CreateGroupView()
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button("OK") {
