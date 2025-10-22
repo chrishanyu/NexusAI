@@ -24,9 +24,25 @@ struct MessageStatusView: View {
     // MARK: - Body
     
     var body: some View {
-        Image(systemName: iconName)
-            .font(.system(size: size))
-            .foregroundColor(iconColor)
+        Group {
+            if status == .delivered || status == .read {
+                // Double checkmark for delivered and read
+                HStack(spacing: -4) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: size))
+                    Image(systemName: "checkmark")
+                        .font(.system(size: size))
+                }
+                .foregroundColor(iconColor)
+                .opacity(iconOpacity)
+            } else {
+                // Single icon for other states
+                Image(systemName: iconName)
+                    .font(.system(size: size))
+                    .foregroundColor(iconColor)
+                    .opacity(iconOpacity)
+            }
+        }
     }
     
     // MARK: - Computed Properties
@@ -35,13 +51,11 @@ struct MessageStatusView: View {
     private var iconName: String {
         switch status {
         case .sending:
-            return "clock"
+            return "clock.fill"
         case .sent:
             return "checkmark"
-        case .delivered:
-            return "checkmark.circle"
-        case .read:
-            return "checkmark.circle.fill"
+        case .delivered, .read:
+            return "checkmark" // Will be doubled in body
         case .failed:
             return "exclamationmark.circle.fill"
         }
@@ -57,9 +71,21 @@ struct MessageStatusView: View {
         case .delivered:
             return Constants.Colors.statusDelivered
         case .read:
-            return Constants.Colors.statusRead
+            return Constants.Colors.statusRead // Blue for read
         case .failed:
             return Constants.Colors.statusFailed
+        }
+    }
+    
+    /// Icon opacity based on message status
+    private var iconOpacity: Double {
+        switch status {
+        case .sending, .sent, .delivered:
+            return 0.7 // Subtle gray states
+        case .read:
+            return 1.0 // Full opacity for blue read state
+        case .failed:
+            return 1.0 // Full opacity for failed state
         }
     }
 }

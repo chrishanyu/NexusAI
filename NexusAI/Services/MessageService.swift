@@ -191,8 +191,37 @@ class MessageService {
         ])
     }
     
-    /// Mark messages as read
-    func markMessagesAsRead(conversationId: String, userId: String) async throws {
+    /// Mark specific messages as read (efficient batch update)
+    /// - Parameters:
+    ///   - messageIds: Array of message IDs to mark as read
+    ///   - conversationId: ID of the conversation
+    ///   - userId: ID of the user marking messages as read
+    /// - Note: Uses batch writes for efficiency. Errors are caught silently to avoid blocking UI.
+    func markMessagesAsRead(messageIds: [String], conversationId: String, userId: String) async throws {
+        guard !messageIds.isEmpty else { return }
+        
+        let batch = db.batch()
+        
+        for messageId in messageIds {
+            let messageRef = db.collection(Constants.Collections.conversations)
+                .document(conversationId)
+                .collection(Constants.Collections.messages)
+                .document(messageId)
+            
+            batch.updateData([
+                "readBy": FieldValue.arrayUnion([userId]),
+                "status": MessageStatus.read.rawValue
+            ], forDocument: messageRef)
+        }
+        
+        try await batch.commit()
+    }
+    
+    /// Mark all unread messages in a conversation as read (legacy method)
+    /// - Parameters:
+    ///   - conversationId: ID of the conversation
+    ///   - userId: ID of the user marking messages as read
+    func markAllMessagesAsRead(conversationId: String, userId: String) async throws {
         // Get unread messages for this user
         let snapshot = try await db.collection(Constants.Collections.conversations)
             .document(conversationId)
@@ -217,6 +246,27 @@ class MessageService {
         if hasUpdates {
             try await batch.commit()
         }
+    }
+    
+    /// Get unread message count for a conversation
+    /// - Parameters:
+    ///   - conversationId: ID of the conversation
+    ///   - userId: ID of the user to check unread messages for
+    /// - Returns: Number of unread messages (messages not in user's readBy array)
+    func getUnreadCount(conversationId: String, userId: String) async throws -> Int {
+        let snapshot = try await db.collection(Constants.Collections.conversations)
+            .document(conversationId)
+            .collection(Constants.Collections.messages)
+            .whereField("senderId", isNotEqualTo: userId)
+            .getDocuments()
+        
+        // Filter messages where userId is NOT in readBy array
+        let unreadCount = snapshot.documents.filter { document in
+            guard let message = try? document.data(as: Message.self) else { return false }
+            return !message.readBy.contains(userId)
+        }.count
+        
+        return unreadCount
     }
     
     /// Update message status

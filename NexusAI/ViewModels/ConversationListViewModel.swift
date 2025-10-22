@@ -29,6 +29,9 @@ class ConversationListViewModel: ObservableObject {
     /// Search text for filtering conversations
     @Published var searchText = ""
     
+    /// Unread counts for each conversation (conversationId -> count)
+    @Published var conversationUnreadCounts: [String: Int] = [:]
+    
     // MARK: - Private Properties
     
     /// Current authenticated user's ID
@@ -41,6 +44,9 @@ class ConversationListViewModel: ObservableObject {
     
     /// Service for conversation operations
     private let conversationService = ConversationService()
+    
+    /// Service for message operations (for unread counts)
+    private let messageService = MessageService()
     
     /// Service for local storage operations
     private let localStorageService = LocalStorageService.shared
@@ -116,6 +122,32 @@ class ConversationListViewModel: ObservableObject {
         listenToConversations()
     }
     
+    /// Update unread count for a specific conversation (optimistic update)
+    /// - Parameters:
+    ///   - conversationId: ID of the conversation
+    ///   - count: New unread count
+    func updateUnreadCount(for conversationId: String, count: Int) {
+        conversationUnreadCounts[conversationId] = max(0, count) // Ensure non-negative
+    }
+    
+    /// Decrement unread count for a conversation (when messages are read)
+    /// - Parameters:
+    ///   - conversationId: ID of the conversation
+    ///   - by: Number to decrement by (default 1)
+    func decrementUnreadCount(for conversationId: String, by amount: Int = 1) {
+        let currentCount = conversationUnreadCounts[conversationId] ?? 0
+        conversationUnreadCounts[conversationId] = max(0, currentCount - amount)
+    }
+    
+    /// Increment unread count for a conversation (when new message arrives)
+    /// - Parameters:
+    ///   - conversationId: ID of the conversation
+    ///   - by: Number to increment by (default 1)
+    func incrementUnreadCount(for conversationId: String, by amount: Int = 1) {
+        let currentCount = conversationUnreadCounts[conversationId] ?? 0
+        conversationUnreadCounts[conversationId] = currentCount + amount
+    }
+    
     // MARK: - Private Methods
     
     /// Set up Firestore snapshot listener for conversations
@@ -174,6 +206,9 @@ class ConversationListViewModel: ObservableObject {
                     
                     // Cache conversations locally
                     self.cacheConversations(newConversations)
+                    
+                    // Calculate unread counts for all conversations
+                    await self.calculateUnreadCounts()
                 }
             }
     }
@@ -271,6 +306,39 @@ class ConversationListViewModel: ObservableObject {
                 print("Failed to cache conversations: \(error.localizedDescription)")
                 // Silent failure - caching is best-effort
             }
+        }
+    }
+    
+    /// Calculate unread counts for all conversations
+    /// This queries Firestore for unread message counts and updates the conversationUnreadCounts dictionary
+    private func calculateUnreadCounts() async {
+        // Get current user ID
+        let userId = currentUserId
+        guard !userId.isEmpty else { return }
+        
+        // Create temporary dictionary to store counts
+        var newCounts: [String: Int] = [:]
+        
+        // Query unread count for each conversation
+        for conversation in conversations {
+            guard let conversationId = conversation.id else { continue }
+            
+            do {
+                let count = try await messageService.getUnreadCount(
+                    conversationId: conversationId,
+                    userId: userId
+                )
+                newCounts[conversationId] = count
+            } catch {
+                print("⚠️ Failed to get unread count for conversation \(conversationId): \(error.localizedDescription)")
+                // Continue with other conversations even if one fails
+                newCounts[conversationId] = 0
+            }
+        }
+        
+        // Update published property on main thread
+        await MainActor.run {
+            self.conversationUnreadCounts = newCounts
         }
     }
 }

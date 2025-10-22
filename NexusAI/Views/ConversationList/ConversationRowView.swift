@@ -13,6 +13,7 @@ struct ConversationRowView: View {
     
     let conversation: Conversation
     let currentUserId: String
+    let unreadCount: Int
     
     // MARK: - Body
     
@@ -81,17 +82,17 @@ struct ConversationRowView: View {
     
     /// Unread message badge
     private var unreadBadge: some View {
-        Circle()
-            .fill(Constants.Colors.unreadBadge)
-            .frame(
-                width: Constants.Dimensions.unreadBadgeSize,
-                height: Constants.Dimensions.unreadBadgeSize
+        Text(badgeText)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, horizontalPadding)
+            .frame(minWidth: Constants.Dimensions.unreadBadgeSize, minHeight: Constants.Dimensions.unreadBadgeSize)
+            .background(
+                Capsule()
+                    .fill(Constants.Colors.unreadBadge)
             )
-            .overlay(
-                Text("\(unreadCount)")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white)
-            )
+            .transition(.scale.combined(with: .opacity))
+            .animation(.spring(duration: 0.2), value: unreadCount)
     }
     
     /// Read receipt indicator (double checkmark)
@@ -132,11 +133,23 @@ struct ConversationRowView: View {
         return false
     }
     
-    /// Unread message count
-    private var unreadCount: Int {
-        // This will be calculated from actual unread messages
-        // For now, return 0 as placeholder
-        return 0
+    /// Badge text to display (handles "99+" logic)
+    private var badgeText: String {
+        if unreadCount > 99 {
+            return "99+"
+        }
+        return "\(unreadCount)"
+    }
+    
+    /// Horizontal padding for badge (more padding for multi-digit numbers)
+    private var horizontalPadding: CGFloat {
+        if unreadCount > 99 {
+            return 6  // "99+" needs more padding
+        } else if unreadCount > 9 {
+            return 5  // Two digits need some padding
+        } else {
+            return 0  // Single digit uses minimum width (circle shape)
+        }
     }
     
     /// Whether to show read receipt indicator
@@ -186,7 +199,8 @@ struct ConversationRowView: View {
                 createdAt: Date().addingTimeInterval(-86400),
                 updatedAt: Date().addingTimeInterval(-300)
             ),
-            currentUserId: "user2"
+            currentUserId: "user2",
+            unreadCount: 3
         )
         
         ConversationRowView(
@@ -215,7 +229,8 @@ struct ConversationRowView: View {
                 createdAt: Date().addingTimeInterval(-172800),
                 updatedAt: Date().addingTimeInterval(-3600)
             ),
-            currentUserId: "user3"
+            currentUserId: "user3",
+            unreadCount: 0
         )
         
         ConversationRowView(
@@ -239,7 +254,8 @@ struct ConversationRowView: View {
                 createdAt: Date().addingTimeInterval(-86400),
                 updatedAt: Date().addingTimeInterval(-86400)
             ),
-            currentUserId: "user4"
+            currentUserId: "user4",
+            unreadCount: 150
         )
     }
     .listStyle(.plain)
@@ -277,7 +293,8 @@ struct ConversationRowView: View {
                 createdAt: Date().addingTimeInterval(-172800),
                 updatedAt: Date().addingTimeInterval(-600)
             ),
-            currentUserId: "user3"
+            currentUserId: "user3",
+            unreadCount: 12
         )
         
         ConversationRowView(
@@ -297,7 +314,8 @@ struct ConversationRowView: View {
                 createdAt: Date().addingTimeInterval(-259200),
                 updatedAt: Date().addingTimeInterval(-7200)
             ),
-            currentUserId: "user3"
+            currentUserId: "user3",
+            unreadCount: 0
         )
     }
     .listStyle(.plain)
@@ -331,7 +349,8 @@ struct ConversationRowView: View {
                 createdAt: Date(),
                 updatedAt: Date()
             ),
-            currentUserId: "user2"
+            currentUserId: "user2",
+            unreadCount: 1
         )
         
         ConversationRowView(
@@ -360,7 +379,8 @@ struct ConversationRowView: View {
                 createdAt: Date().addingTimeInterval(-300),
                 updatedAt: Date().addingTimeInterval(-300)
             ),
-            currentUserId: "user2"
+            currentUserId: "user2",
+            unreadCount: 42
         )
         
         ConversationRowView(
@@ -389,7 +409,8 @@ struct ConversationRowView: View {
                 createdAt: Date().addingTimeInterval(-86400),
                 updatedAt: Date().addingTimeInterval(-86400)
             ),
-            currentUserId: "user2"
+            currentUserId: "user2",
+            unreadCount: 0
         )
     }
     .listStyle(.plain)
