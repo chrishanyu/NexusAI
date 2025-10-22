@@ -35,6 +35,9 @@ class AuthViewModel: ObservableObject {
     private let authService: AuthServiceProtocol
     private var authStateHandle: AuthStateDidChangeListenerHandle?
     
+    /// Lazy presence service - created on first access (after Firebase is configured)
+    private lazy var presenceService = PresenceService()
+    
     // MARK: - Initialization
     
     /// Initialize with default AuthService
@@ -82,6 +85,12 @@ class AuthViewModel: ObservableObject {
             
             // Update current user on success
             currentUser = user
+            
+            // Set user as online
+            if let userId = user.id {
+                try? await presenceService.setUserOnline(userId: userId)
+                print("👥 User presence set to online")
+            }
             
             print("✅ Sign-in successful: \(user.displayName)")
             
@@ -158,6 +167,12 @@ class AuthViewModel: ObservableObject {
         }
         
         do {
+            // Set user offline before signing out
+            if let userId = currentUser?.id {
+                try? await presenceService.setUserOffline(userId: userId)
+                print("👥 User presence set to offline")
+            }
+            
             // Call AuthService to sign out
             try await authService.signOut()
             
