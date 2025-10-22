@@ -66,9 +66,17 @@ struct Conversation: Codable, Identifiable, Hashable {
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(participants)
+        hasher.combine(lastMessage)
+        hasher.combine(updatedAt)
     }
     
     static func == (lhs: Conversation, rhs: Conversation) -> Bool {
-        lhs.id == rhs.id
+        // For SwiftUI diffing, we need to check actual content, not just ID
+        // This ensures views re-render when conversation data changes
+        return lhs.id == rhs.id &&
+               lhs.participants == rhs.participants &&
+               lhs.lastMessage == rhs.lastMessage &&
+               lhs.updatedAt == rhs.updatedAt
     }
 }

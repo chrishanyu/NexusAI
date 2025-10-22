@@ -245,6 +245,11 @@ class ConversationListViewModel: ObservableObject {
             let date2 = $1.updatedAt ?? $1.createdAt
             return date1 > date2
         }
+        
+        // Fix missing participant information
+        Task {
+            await enrichMissingParticipantInfo()
+        }
     }
     
     /// Load cached conversations from local storage
@@ -264,7 +269,7 @@ class ConversationListViewModel: ObservableObject {
                     id: cached.id,
                     type: type,
                     participantIds: cached.participantIds,
-                    participants: [:], // Will be filled by Firestore sync
+                    participants: [:], // Will be filled by Firestore sync or enrichment
                     lastMessage: cached.lastMessageText != nil ? Conversation.LastMessage(
                         text: cached.lastMessageText!,
                         senderId: "",
@@ -281,6 +286,12 @@ class ConversationListViewModel: ObservableObject {
             // Only use cached data if we have some
             if !conversations.isEmpty {
                 self.conversations = conversations
+                
+                // Enrich participant info immediately after loading from cache
+                // This prevents "Unknown User" from showing while waiting for Firestore sync
+                Task {
+                    await enrichMissingParticipantInfo()
+                }
             }
         } catch {
             print("Failed to load cached conversations: \(error.localizedDescription)")
@@ -339,6 +350,82 @@ class ConversationListViewModel: ObservableObject {
         // Update published property on main thread
         await MainActor.run {
             self.conversationUnreadCounts = newCounts
+        }
+    }
+    
+    /// Enrich conversations with missing participant information
+    /// This fixes the "Unknown User" bug by fetching user profiles for participants with empty display names
+    private func enrichMissingParticipantInfo() async {
+        let authService = AuthService()
+        let userId = currentUserId
+        guard !userId.isEmpty else { return }
+        
+        // Work with a snapshot of conversations to avoid index issues
+        let conversationsSnapshot = conversations
+        
+        // Dictionary to store enriched conversations by ID
+        var enrichedConversations: [String: Conversation] = [:]
+        
+        // Check each conversation for missing participant info
+        for conversation in conversationsSnapshot {
+            // Skip group conversations - they usually have their own name
+            // Only fix direct conversations where participant info is missing
+            guard conversation.type == .direct else { continue }
+            
+            // Find the other participant (not current user)
+            guard let otherParticipantId = conversation.participantIds.first(where: { $0 != userId }) else {
+                continue
+            }
+            
+            // Check if participant info is missing or empty
+            let participantInfo = conversation.participants[otherParticipantId]
+            let needsEnrichment = participantInfo == nil || 
+                                  participantInfo?.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true
+            
+            guard needsEnrichment else { continue }
+            
+            // Fetch user profile from Firestore
+            do {
+                let userProfile = try await authService.getUserProfile(userId: otherParticipantId)
+                
+                // Create updated conversation with enriched participant info
+                var updatedConversation = conversation
+                updatedConversation.participants[otherParticipantId] = Conversation.ParticipantInfo(
+                    displayName: userProfile.displayName,
+                    profileImageUrl: userProfile.profileImageUrl
+                )
+                
+                // Store enriched conversation
+                if let convId = conversation.id {
+                    enrichedConversations[convId] = updatedConversation
+                    print("✅ Enriched participant info for conversation \(convId): \(userProfile.displayName)")
+                }
+            } catch {
+                print("⚠️ Failed to fetch user profile for \(otherParticipantId): \(error.localizedDescription)")
+                // Continue with other conversations - this is best-effort
+            }
+        }
+        
+        // Apply all enriched conversations to the main array in one update
+        guard !enrichedConversations.isEmpty else { return }
+        
+        await MainActor.run {
+            // Create a completely new array to force SwiftUI to detect the change
+            var updatedConversations: [Conversation] = []
+            
+            for conversation in self.conversations {
+                if let convId = conversation.id,
+                   let enriched = enrichedConversations[convId] {
+                    // Use the enriched version
+                    updatedConversations.append(enriched)
+                } else {
+                    // Keep the original
+                    updatedConversations.append(conversation)
+                }
+            }
+            
+            // Replace entire array to trigger SwiftUI update
+            self.conversations = updatedConversations
         }
     }
 }
