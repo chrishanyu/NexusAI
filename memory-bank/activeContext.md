@@ -2,10 +2,12 @@
 
 ## Current Focus
 
-**Sprint:** MVP Foundation  
-**Phase:** Advanced Features - Group Chat & Notifications  
+**Sprint:** MVP Foundation + Architecture Enhancement  
+**Phase:** Advanced Features - Group Chat & Notifications + Sync Framework  
 **Status:** ✅ PR #12 (Group Chat) COMPLETE - Full group messaging with participant management  
-**Next:** PR #10 (Read Receipts full implementation), PR #13 (Push Notifications)
+**Recent:** ✅ Architecture overview document created (`architecture-dataflow-overview.md`)  
+**NEW:** 📋 PRD for Local-First Sync Framework created (`tasks/prd-local-first-sync-framework.md`)  
+**Next:** PR #10 (Read Receipts), PR #13 (Push Notifications), OR Start Sync Framework Implementation
 
 ## What We're Building Right Now
 
@@ -472,6 +474,7 @@ All dependencies available:
 - `tasks/prd-core-messaging.md` - Core messaging PRD (PRs #5-8)
 - `tasks/tasks-prd-core-messaging.md` - Task list with completion tracking
 - `architecture.md` - Visual architecture diagram
+- `architecture-dataflow-overview.md` - **NEW:** Comprehensive data flow documentation for notifications, messages, and conversations
 - `building-phases.md` - PR breakdown and build order
 - `memory-bank/systemPatterns.md` - Architectural patterns
 - `memory-bank/techContext.md` - Technical stack and decisions
