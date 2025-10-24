@@ -68,6 +68,9 @@ final class SyncEngine {
         // Start network monitoring
         observeNetworkChanges()
         
+        // Start database change monitoring for immediate sync
+        observeDatabaseChanges()
+        
         // Start pull sync listeners
         startMessageListener()
         startConversationListener()
@@ -142,6 +145,32 @@ final class SyncEngine {
             .store(in: &cancellables)
         
         print("✅ Network monitoring active")
+    }
+    
+    /// Observe database changes and trigger immediate sync for pending entities
+    private func observeDatabaseChanges() {
+        print("📡 Starting database change monitoring...")
+        
+        NotificationCenter.default
+            .publisher(for: .localDatabaseDidChange)
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                
+                Task { @MainActor in
+                    // Check if we're online before triggering sync
+                    guard self.networkMonitor.isConnected else {
+                        return
+                    }
+                    
+                    // Trigger immediate sync cycle for pending entities
+                    print("🔄 Database changed - triggering immediate sync...")
+                    await self.performSyncCycle()
+                }
+            }
+            .store(in: &cancellables)
+        
+        print("✅ Database change monitoring active")
     }
     
     // MARK: - Push Sync Worker
@@ -501,27 +530,55 @@ final class SyncEngine {
             return
         }
         
-        // Check if message already exists locally
-        let predicate = #Predicate<LocalMessage> { localMessage in
+        // Check if message already exists locally by Firestore ID
+        let idPredicate = #Predicate<LocalMessage> { localMessage in
             localMessage.id == messageId
         }
         
-        let existing = try database.fetchOne(LocalMessage.self, where: predicate)
+        let existingById = try database.fetchOne(LocalMessage.self, where: idPredicate)
         
-        if existing == nil {
-            // New message - insert into local database
-            let localMessage = LocalMessage.from(message, syncStatus: .synced)
-            try database.insert(localMessage)
-            try database.save()
-            // Reduced logging - only in debug mode
-            #if DEBUG
-            print("✅ Message added: \(messageId)")
-            #endif
-            
-            // Notify observers of changes
-            database.notifyChanges()
+        // If found by ID, skip (already exists)
+        if existingById != nil {
+            // Silently skip if exists (reduces log noise)
+            return
         }
-        // Silently skip if exists (reduces log noise)
+        
+        // Check if this is an optimistic message (by localId) that needs updating
+        if let localId = message.localId {
+            let localIdPredicate = #Predicate<LocalMessage> { localMessage in
+                localMessage.localId == localId
+            }
+            
+            if let existingByLocalId = try database.fetchOne(LocalMessage.self, where: localIdPredicate) {
+                // Found optimistic message - update it with Firestore ID instead of inserting duplicate
+                print("🔄 Updating optimistic message with Firestore ID: \(messageId)")
+                existingByLocalId.id = messageId
+                existingByLocalId.syncStatus = .synced
+                existingByLocalId.serverTimestamp = message.timestamp
+                existingByLocalId.statusRaw = message.status.rawValue
+                existingByLocalId.readBy = message.readBy
+                existingByLocalId.deliveredTo = message.deliveredTo
+                existingByLocalId.updatedAt = Date()
+                try database.save()
+                
+                // Notify observers of changes
+                database.notifyChanges()
+                return
+            }
+        }
+        
+        // New message from another user - insert into local database
+        let localMessage = LocalMessage.from(message, syncStatus: .synced)
+        try database.insert(localMessage)
+        try database.save()
+        
+        // Reduced logging - only in debug mode
+        #if DEBUG
+        print("✅ Message added: \(messageId)")
+        #endif
+        
+        // Notify observers of changes
+        database.notifyChanges()
     }
     
     /// Handle modified message from Firestore (conflict resolution)
