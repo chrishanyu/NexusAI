@@ -10,7 +10,7 @@ import Network
 import Combine
 
 /// Monitors network connectivity status using NWPathMonitor
-class NetworkMonitor: ObservableObject {
+class NetworkMonitor: ObservableObject, NetworkMonitoring {
     
     // MARK: - Singleton
     
@@ -24,6 +24,11 @@ class NetworkMonitor: ObservableObject {
     
     /// Current network path status (for debugging)
     @Published var connectionType: NWInterface.InterfaceType?
+    
+    /// Publisher for isConnected property (for NetworkMonitoring protocol conformance)
+    var isConnectedPublisher: AnyPublisher<Bool, Never> {
+        $isConnected.eraseToAnyPublisher()
+    }
     
     // MARK: - Private Properties
     

@@ -27,17 +27,34 @@ class GroupInfoViewModel: ObservableObject {
     // MARK: - Private Properties
     
     private let conversation: Conversation
-    private let authService = AuthService()
     
     /// Current user ID
     private var currentUserId: String {
         Auth.auth().currentUser?.uid ?? ""
     }
     
+    // MARK: - Local-First Sync Dependencies (if enabled)
+    
+    private var userRepository: UserRepositoryProtocol?
+    
+    // MARK: - Legacy Dependencies (if local-first disabled)
+    
+    private var authService: AuthService?
+    
     // MARK: - Initialization
     
-    init(conversation: Conversation) {
+    init(conversation: Conversation, userRepository: UserRepositoryProtocol? = nil) {
         self.conversation = conversation
+        
+        // Set up dependencies based on feature flag
+        if Constants.FeatureFlags.isLocalFirstSyncEnabled {
+            self.userRepository = userRepository ?? RepositoryFactory.shared.userRepository
+            print("✅ GroupInfoViewModel using local-first sync (UserRepository)")
+        } else {
+            self.authService = AuthService()
+            print("✅ GroupInfoViewModel using legacy Firebase services")
+        }
+        
         Task {
             await loadParticipants()
         }
@@ -45,7 +62,7 @@ class GroupInfoViewModel: ObservableObject {
     
     // MARK: - Public Methods
     
-    /// Load all participant details from Firestore
+    /// Load all participant details from repository or Firestore
     func loadParticipants() async {
         isLoading = true
         errorMessage = nil
@@ -55,8 +72,25 @@ class GroupInfoViewModel: ObservableObject {
         // Fetch user details for each participant
         for participantId in conversation.participantIds {
             do {
-                let user = try await authService.getUserProfile(userId: participantId)
-                loadedUsers.append(user)
+                let user: User?
+                
+                // Use repository if available, otherwise use auth service
+                if let repository = userRepository {
+                    // Repository mode: fetch from local database
+                    user = try await repository.getUser(userId: participantId)
+                } else if let service = authService {
+                    // Legacy mode: fetch from Firestore
+                    user = try await service.getUserProfile(userId: participantId)
+                } else {
+                    print("⚠️ No user data source available")
+                    continue
+                }
+                
+                // Add user if successfully loaded
+                if let user = user {
+                    loadedUsers.append(user)
+                }
+                
             } catch {
                 print("Failed to load user \(participantId): \(error.localizedDescription)")
                 // Continue loading other users even if one fails

@@ -38,20 +38,42 @@ class AuthViewModel: ObservableObject {
     /// Lazy presence service - created on first access (after Firebase is configured)
     private lazy var presenceService = PresenceService()
     
+    // MARK: - Local-First Sync Dependencies (if enabled)
+    
+    private var userRepository: UserRepositoryProtocol?
+    
     // MARK: - Initialization
     
     /// Initialize with default AuthService
-    init() {
+    init(userRepository: UserRepositoryProtocol? = nil) {
         self.authService = AuthService()
+        
+        // Set up repository if feature flag enabled
+        if Constants.FeatureFlags.isLocalFirstSyncEnabled {
+            self.userRepository = userRepository ?? RepositoryFactory.shared.userRepository
+            print("✅ AuthViewModel using local-first sync (UserRepository)")
+        } else {
+            print("✅ AuthViewModel using legacy Firebase services")
+        }
         
         // Set up auth state listener for session persistence
         setupAuthStateListener()
     }
     
     /// Initialize with custom AuthService dependency (for testing)
-    /// - Parameter authService: Service for authentication operations
-    init(authService: AuthServiceProtocol) {
+    /// - Parameters:
+    ///   - authService: Service for authentication operations
+    ///   - userRepository: Optional user repository for local-first sync
+    init(authService: AuthServiceProtocol, userRepository: UserRepositoryProtocol? = nil) {
         self.authService = authService
+        
+        // Set up repository if feature flag enabled
+        if Constants.FeatureFlags.isLocalFirstSyncEnabled {
+            self.userRepository = userRepository ?? RepositoryFactory.shared.userRepository
+            print("✅ AuthViewModel using local-first sync (UserRepository)")
+        } else {
+            print("✅ AuthViewModel using legacy Firebase services")
+        }
         
         // Set up auth state listener for session persistence
         setupAuthStateListener()
@@ -207,12 +229,25 @@ class AuthViewModel: ObservableObject {
         }
     }
     
-    /// Load user profile from Firestore
+    /// Load user profile from repository or Firestore
     private func loadUserProfile(userId: String) async {
         do {
-            let user = try await authService.getUserProfile(userId: userId)
+            let user: User?
+            
+            // Use repository if available, otherwise use auth service
+            if let repository = userRepository {
+                // Repository mode: fetch from local database (synced from Firestore)
+                user = try await repository.getUser(userId: userId)
+                print("✅ User profile loaded from repository: \(user?.displayName ?? "nil")")
+            } else {
+                // Legacy mode: fetch directly from Firestore
+                user = try await authService.getUserProfile(userId: userId)
+                print("✅ User profile loaded from Firestore: \(user?.displayName ?? "nil")")
+            }
+            
+            // Update current user
             currentUser = user
-            print("✅ User profile loaded: \(user.displayName)")
+            
         } catch {
             print("⚠️ Failed to load user profile: \(error.localizedDescription)")
             // If we can't load the profile, sign out the user

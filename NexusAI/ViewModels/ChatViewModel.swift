@@ -61,23 +61,32 @@ class ChatViewModel: ObservableObject {
         conversation?.type == .group
     }
     
-    /// Message service
-    private let messageService = MessageService()
+    // MARK: - Local-First Sync Dependencies (if enabled)
     
-    /// Conversation service
-    private let conversationService = ConversationService()
+    private var messageRepository: MessageRepositoryProtocol?
+    private var conversationRepository: ConversationRepositoryProtocol?
     
-    /// Local storage service
-    private let localStorageService = LocalStorageService.shared
+    // MARK: - Legacy Dependencies (if local-first disabled)
+    
+    /// Message service (legacy)
+    private var messageService: MessageService?
+    
+    /// Conversation service (legacy)
+    private var conversationService: ConversationService?
+    
+    /// Local storage service (legacy)
+    private var localStorageService: LocalStorageService?
+    
+    /// Message queue service for offline messages (legacy)
+    private var messageQueueService: MessageQueueService?
+    
+    /// Firestore listener registration (legacy)
+    private var messageListener: ListenerRegistration?
+    
+    // MARK: - Shared Dependencies
     
     /// Network monitor for connectivity status
     private let networkMonitor = NetworkMonitor.shared
-    
-    /// Message queue service for offline messages
-    private let messageQueueService = MessageQueueService.shared
-    
-    /// Firestore listener registration
-    private var messageListener: ListenerRegistration?
     
     /// Combine cancellables
     private var cancellables = Set<AnyCancellable>()
@@ -91,12 +100,37 @@ class ChatViewModel: ObservableObject {
     /// Task for debouncing mark-as-read calls
     private var markAsReadTask: Task<Void, Never>?
     
+    /// Task for listening to repository messages
+    private var repositoryListenerTask: Task<Void, Never>?
+    
     // MARK: - Initialization
     
-    /// Initialize with conversation ID
-    /// - Parameter conversationId: ID of the conversation to display
-    init(conversationId: String) {
+    /// Initialize with conversation ID and optional repositories
+    /// - Parameters:
+    ///   - conversationId: ID of the conversation to display
+    ///   - messageRepository: Optional message repository (for testing or local-first sync)
+    ///   - conversationRepository: Optional conversation repository (for testing or local-first sync)
+    init(
+        conversationId: String,
+        messageRepository: MessageRepositoryProtocol? = nil,
+        conversationRepository: ConversationRepositoryProtocol? = nil
+    ) {
         self.conversationId = conversationId
+        
+        // Set up dependencies based on feature flag
+        if Constants.FeatureFlags.isLocalFirstSyncEnabled {
+            // Use repositories (local-first sync)
+            self.messageRepository = messageRepository ?? RepositoryFactory.shared.messageRepository
+            self.conversationRepository = conversationRepository ?? RepositoryFactory.shared.conversationRepository
+            print("✅ ChatViewModel using local-first sync (repositories)")
+        } else {
+            // Use legacy services (direct Firebase)
+            self.messageService = MessageService()
+            self.conversationService = ConversationService()
+            self.localStorageService = LocalStorageService.shared
+            self.messageQueueService = MessageQueueService.shared
+            print("✅ ChatViewModel using legacy Firebase services")
+        }
         
         // Load conversation details and messages
         loadConversation()
@@ -115,6 +149,8 @@ class ChatViewModel: ObservableObject {
     deinit {
         messageListener?.remove()
         messageListener = nil
+        repositoryListenerTask?.cancel()
+        repositoryListenerTask = nil
         errorDismissTimer?.invalidate()
         errorDismissTimer = nil
     }
@@ -125,6 +161,8 @@ class ChatViewModel: ObservableObject {
     func cleanupListeners() {
         messageListener?.remove()
         messageListener = nil
+        repositoryListenerTask?.cancel()
+        repositoryListenerTask = nil
         errorDismissTimer?.invalidate()
         errorDismissTimer = nil
         markAsReadTask?.cancel()
@@ -169,13 +207,23 @@ class ChatViewModel: ObservableObject {
             
             print("📖 Marking \(messageIds.count) messages as read...")
             
-            // Call MessageService to mark messages as read (silent failure)
+            // Mark messages as read using appropriate service
             do {
-                try await messageService.markMessagesAsRead(
-                    messageIds: messageIds,
-                    conversationId: conversationId,
-                    userId: currentUserId
-                )
+                if let repository = messageRepository {
+                    // Use repository (local-first sync)
+                    try await repository.markMessagesAsRead(
+                        messageIds: messageIds,
+                        conversationId: conversationId,
+                        userId: currentUserId
+                    )
+                } else if let service = messageService {
+                    // Use legacy service
+                    try await service.markMessagesAsRead(
+                        messageIds: messageIds,
+                        conversationId: conversationId,
+                        userId: currentUserId
+                    )
+                }
                 print("✅ Successfully marked \(messageIds.count) messages as read")
             } catch {
                 // Silent failure - read receipts shouldn't block chat functionality
@@ -192,6 +240,33 @@ class ChatViewModel: ObservableObject {
         
         // Clear input immediately for better UX
         messageText = ""
+        
+        // Use repository if local-first sync is enabled
+        if let repository = messageRepository {
+            // Repository pattern: Optimistic UI and sync handled automatically
+            Task {
+                do {
+                    _ = try await repository.sendMessage(
+                        conversationId: conversationId,
+                        text: trimmedText,
+                        senderId: currentUserId,
+                        senderName: currentUserDisplayName
+                    )
+                    print("✅ Message sent via repository (optimistic UI handled automatically)")
+                } catch {
+                    await MainActor.run {
+                        self.setErrorMessage("Failed to send message: \(error.localizedDescription)")
+                    }
+                    print("❌ Repository send message failed: \(error.localizedDescription)")
+                }
+            }
+            return
+        }
+        
+        // Legacy path: Manual optimistic UI and queue management
+        guard let service = messageService, let localStorage = localStorageService, let queueService = messageQueueService else {
+            return
+        }
         
         // Generate unique local ID for optimistic message
         let localId = UUID().uuidString
@@ -217,7 +292,7 @@ class ChatViewModel: ObservableObject {
         Task {
             do {
                 try await MainActor.run {
-                    try localStorageService.cacheMessages([optimisticMessage])
+                    try localStorage.cacheMessages([optimisticMessage])
                 }
             } catch {
                 print("Failed to cache optimistic message: \(error.localizedDescription)")
@@ -231,7 +306,7 @@ class ChatViewModel: ObservableObject {
             Task {
                 do {
                     // Call MessageService to send message
-                    let messageId = try await messageService.sendMessage(
+                    let messageId = try await service.sendMessage(
                         conversationId: conversationId,
                         text: trimmedText,
                         senderId: currentUserId,
@@ -269,7 +344,7 @@ class ChatViewModel: ObservableObject {
             Task {
                 do {
                     try await MainActor.run {
-                        try messageQueueService.enqueue(message: optimisticMessage)
+                        try queueService.enqueue(message: optimisticMessage)
                     }
                     print("Message queued for sending when online: \(localId)")
                     // Keep status as "sending" - will be sent when connectivity is restored
@@ -292,6 +367,13 @@ class ChatViewModel: ObservableObject {
     /// Retry sending a failed message
     /// - Parameter localId: The localId of the failed message to retry
     func retryMessage(localId: String) {
+        // Note: Retry is only available in legacy mode
+        // Repository mode handles retries automatically
+        guard let service = messageService else {
+            print("⚠️ Retry not available - using repository mode with automatic retry")
+            return
+        }
+        
         // Find the failed message
         guard let index = allMessages.firstIndex(where: { $0.localId == localId }) else {
             print("Failed to find message with localId: \(localId)")
@@ -322,7 +404,7 @@ class ChatViewModel: ObservableObject {
         Task {
             do {
                 // Call MessageService to send message
-                let messageId = try await messageService.sendMessage(
+                let messageId = try await service.sendMessage(
                     conversationId: conversationId,
                     text: failedMessage.text,
                     senderId: currentUserId,
@@ -359,6 +441,13 @@ class ChatViewModel: ObservableObject {
     
     /// Load older messages (pagination)
     func loadOlderMessages() {
+        // Note: Repository mode loads all messages automatically
+        // Pagination is only needed in legacy mode
+        guard let service = messageService else {
+            print("ℹ️ Pagination not needed - repository mode loads all messages")
+            return
+        }
+        
         // Don't load if already loading or no more messages
         guard !isLoadingOlderMessages, hasMoreMessages else {
             print("⚠️ Skipping load: isLoading=\(isLoadingOlderMessages), hasMore=\(hasMoreMessages)")
@@ -378,7 +467,7 @@ class ChatViewModel: ObservableObject {
         Task {
             do {
                 // Query Firestore for messages before the oldest timestamp
-                let olderMessages = try await messageService.getMessagesBefore(
+                let olderMessages = try await service.getMessagesBefore(
                     conversationId: conversationId,
                     beforeDate: oldestMessage.timestamp,
                     limit: 50
@@ -420,9 +509,33 @@ class ChatViewModel: ObservableObject {
     
     /// Start listening to real-time message updates
     private func startListeningToMessages() {
+        if let repository = messageRepository {
+            // Use repository pattern with AsyncStream
+            repositoryListenerTask = Task { @MainActor in
+                for await messages in repository.observeMessages(conversationId: conversationId) {
+                    // Repository returns all messages for the conversation
+                    self.allMessages = messages.sorted { $0.timestamp < $1.timestamp }
+                    
+                    // Update pagination state
+                    if messages.count < 50 {
+                        self.hasMoreMessages = false
+                    }
+                    
+                    // Reduced logging - only in debug mode
+                    #if DEBUG
+                    print("📨 \(messages.count) messages")
+                    #endif
+                }
+            }
+            return
+        }
+        
+        // Legacy path: Use MessageService with callback
+        guard let service = messageService else { return }
+        
         var isInitialLoad = true
         
-        messageListener = messageService.listenToMessages(
+        messageListener = service.listenToMessages(
             conversationId: conversationId,
             limit: 50
         ) { [weak self] messages in
@@ -486,21 +599,21 @@ class ChatViewModel: ObservableObject {
         // Read status is only marked when user is actively viewing (ChatView lifecycle events)
     }
     
-    /// Cache messages to local storage
+    /// Cache messages to local storage (legacy mode only)
     /// - Parameter messages: Messages to cache
     private func cacheMessagesToLocalStorage(_ messages: [Message]) {
-        guard !messages.isEmpty else { return }
+        guard !messages.isEmpty, let localStorage = localStorageService else { return }
         
         Task {
             do {
                 // First, clear existing cached messages for this conversation to avoid duplicates
                 try await MainActor.run {
-                    try localStorageService.clearCachedMessages(conversationId: conversationId)
+                    try localStorage.clearCachedMessages(conversationId: conversationId)
                 }
                 
                 // Then cache the new messages
                 try await MainActor.run {
-                    try localStorageService.cacheMessages(messages)
+                    try localStorage.cacheMessages(messages)
                 }
             } catch {
                 print("⚠️ Failed to cache messages: \(error.localizedDescription)")
@@ -519,11 +632,11 @@ class ChatViewModel: ObservableObject {
                 let wasOffline = self.isOffline
                 self.isOffline = !isConnected
                 
-                // If we just came back online, flush the message queue
-                if wasOffline && isConnected {
+                // If we just came back online, flush the message queue (legacy mode only)
+                if wasOffline && isConnected, let queueService = self.messageQueueService {
                     print("Network restored - flushing message queue")
                     Task {
-                        let results = await self.messageQueueService.flushQueue()
+                        let results = await queueService.flushQueue()
                         
                         // Update optimistic messages with flush results
                         await MainActor.run {
@@ -554,10 +667,25 @@ class ChatViewModel: ObservableObject {
         
         Task {
             do {
-                let conversation = try await conversationService.getConversation(conversationId: conversationId)
+                let conversation: Conversation?
+                
+                // Use appropriate service based on feature flag
+                if let repository = conversationRepository {
+                    // Use repository
+                    conversation = try await repository.getConversation(conversationId: conversationId)
+                } else if let service = conversationService {
+                    // Use legacy service
+                    conversation = try await service.getConversation(conversationId: conversationId)
+                } else {
+                    throw NSError(domain: "ChatViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "No conversation service available"])
+                }
                 
                 await MainActor.run {
-                    self.conversation = conversation
+                    if let conversation = conversation {
+                        self.conversation = conversation
+                    } else {
+                        self.setErrorMessage("Conversation not found")
+                    }
                     self.isLoading = false
                 }
             } catch {
