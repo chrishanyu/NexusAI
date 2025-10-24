@@ -111,6 +111,13 @@ struct Constants {
         static let name = "Nexus"
         static let version = "1.0.0"
     }
+    
+    // MARK: - Feature Flags
+    struct FeatureFlags {
+        /// Enable local-first sync framework (SwiftData + Repository pattern)
+        /// Set to false to use legacy Firebase direct access
+        static let isLocalFirstSyncEnabled = true
+    }
 }
 
 // MARK: - Color Extension for Hex

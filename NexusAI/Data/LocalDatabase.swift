@@ -8,6 +8,12 @@
 import Foundation
 import SwiftData
 
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let localDatabaseDidChange = Notification.Name("localDatabaseDidChange")
+}
+
 /// Local database wrapper for SwiftData operations
 /// Provides a clean interface for CRUD operations and reactive queries
 @available(iOS 17.0, *)
@@ -285,6 +291,17 @@ class LocalDatabase {
         }
     }
     
+    // MARK: - Manual Refresh Notification
+    
+    /// Post a notification to trigger repository observers to refresh
+    /// Call this after making updates that should propagate to observers immediately
+    func notifyChanges() {
+        // Post notification on main actor to trigger observers
+        Task { @MainActor in
+            NotificationCenter.default.post(name: .localDatabaseDidChange, object: nil)
+        }
+    }
+    
     // MARK: - Reactive Queries (AsyncStream)
     
     /// Observe entities with real-time updates using AsyncStream
@@ -299,7 +316,6 @@ class LocalDatabase {
         sortBy: [SortDescriptor<T>] = []
     ) -> AsyncStream<[T]> {
         AsyncStream { continuation in
-            // Create a task to observe changes
             let task = Task { @MainActor in
                 // Initial fetch
                 do {
@@ -315,13 +331,9 @@ class LocalDatabase {
                     continuation.yield([])
                 }
                 
-                // Set up observer for changes
-                // Note: SwiftData doesn't have built-in change notifications
-                // We'll use a polling mechanism with short interval
-                // In production, consider using NotificationCenter or Combine
-                while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                    
+                // Listen to change notifications (event-driven, not polling)
+                // Repositories and SyncEngine call database.notifyChanges() after writes
+                for await _ in NotificationCenter.default.notifications(named: .localDatabaseDidChange) {
                     guard !Task.isCancelled else { break }
                     
                     do {
@@ -340,7 +352,6 @@ class LocalDatabase {
                 continuation.finish()
             }
             
-            // Cleanup on cancellation
             continuation.onTermination = { _ in
                 task.cancel()
             }
@@ -367,10 +378,8 @@ class LocalDatabase {
                     continuation.yield(nil)
                 }
                 
-                // Observe changes
-                while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                    
+                // Listen to change notifications (event-driven, not polling)
+                for await _ in NotificationCenter.default.notifications(named: .localDatabaseDidChange) {
                     guard !Task.isCancelled else { break }
                     
                     do {

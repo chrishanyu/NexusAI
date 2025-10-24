@@ -307,25 +307,32 @@ final class UserRepositoryTests: XCTestCase {
             }
         }
         
-        // Give stream time to set up
-        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Give stream time to set up and emit initial state
+        try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
         
         // Insert a user
         let user = createLocalUser(id: userId, displayName: "John", email: "john@example.com")
         try database.insert(user)
         try database.save()
         
-        // Wait for stream to emit
-        try await Task.sleep(nanoseconds: 600_000_000) // 0.6 seconds
+        // Trigger notification for event-driven updates
+        database.notifyChanges()
+        
+        // Wait for stream to emit update
+        try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
         
         task.cancel()
         
         // Then
-        XCTAssertGreaterThanOrEqual(receivedUsers.count, 1)
+        XCTAssertGreaterThanOrEqual(receivedUsers.count, 1, "Should have received at least 1 emission")
         if receivedUsers.count >= 2 {
             XCTAssertNil(receivedUsers[0]) // Initial nil state
             XCTAssertNotNil(receivedUsers[1]) // After insert
             XCTAssertEqual(receivedUsers[1]?.displayName, "John")
+        } else if receivedUsers.count == 1 {
+            // If only got one emission, it should be the updated user (timing dependent)
+            XCTAssertNotNil(receivedUsers[0], "First emission should be the user")
+            XCTAssertEqual(receivedUsers[0]?.displayName, "John")
         }
     }
     
@@ -350,8 +357,8 @@ final class UserRepositoryTests: XCTestCase {
             }
         }
         
-        // Give stream time to set up
-        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Give stream time to set up and emit initial state
+        try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
         
         // Insert users
         let user1 = createLocalUser(id: "user1", displayName: "Alice", email: "alice@example.com")
@@ -360,13 +367,16 @@ final class UserRepositoryTests: XCTestCase {
         try database.insert(user2)
         try database.save()
         
-        // Wait for stream to emit
-        try await Task.sleep(nanoseconds: 600_000_000) // 0.6 seconds
+        // Trigger notification for event-driven updates
+        database.notifyChanges()
+        
+        // Wait for stream to emit update
+        try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
         
         task.cancel()
         
         // Then
-        XCTAssertGreaterThanOrEqual(receivedUserDicts.count, 1)
+        XCTAssertGreaterThanOrEqual(receivedUserDicts.count, 1, "Should have received at least 1 emission")
         if receivedUserDicts.count >= 2 {
             XCTAssertEqual(receivedUserDicts[0].count, 0) // Initial empty state
             XCTAssertEqual(receivedUserDicts[1].count, 2) // After insert

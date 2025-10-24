@@ -139,6 +139,24 @@ final class MessageRepository: MessageRepositoryProtocol {
         try database.insert(localMessage)
         try database.save()
         
+        // Update conversation's last message immediately (optimistic UI)
+        let conversationPredicate = #Predicate<LocalConversation> { conversation in
+            conversation.id == conversationId
+        }
+        if let localConversation = try database.fetchOne(LocalConversation.self, where: conversationPredicate) {
+            localConversation.lastMessageText = text
+            localConversation.lastMessageSenderId = senderId
+            localConversation.lastMessageSenderName = senderName
+            localConversation.lastMessageTimestamp = timestamp
+            localConversation.updatedAt = timestamp
+            localConversation.syncStatus = .pending
+            try database.update(localConversation)
+            try database.save()
+        }
+        
+        // Notify observers of changes
+        database.notifyChanges()
+        
         return message
     }
     
@@ -171,6 +189,9 @@ final class MessageRepository: MessageRepositoryProtocol {
         }
         
         try database.save()
+        
+        // Notify observers of changes
+        database.notifyChanges()
     }
     
     func markMessagesAsDelivered(
@@ -202,6 +223,9 @@ final class MessageRepository: MessageRepositoryProtocol {
         }
         
         try database.save()
+        
+        // Notify observers of changes
+        database.notifyChanges()
     }
     
     func deleteMessage(messageId: String) async throws {
@@ -212,6 +236,9 @@ final class MessageRepository: MessageRepositoryProtocol {
         if let localMessage = try database.fetchOne(LocalMessage.self, where: predicate) {
             try database.delete(localMessage)
             try database.save()
+            
+            // Notify observers of changes
+            database.notifyChanges()
         }
     }
     

@@ -31,6 +31,21 @@ struct NexusApp: App {
         
         _notificationManager = StateObject(wrappedValue: notificationMgr)
         _bannerManager = StateObject(wrappedValue: bannerMgr)
+        
+        // Initialize local-first sync framework if enabled
+        if Constants.FeatureFlags.isLocalFirstSyncEnabled {
+            // RepositoryFactory is a singleton - no need to store it
+            // It's accessed via RepositoryFactory.shared wherever needed
+            
+            // Initialize and start sync engine on the main actor
+            Task { @MainActor in
+                let engine = SyncEngine()
+                engine.start()
+                print("✅ SyncEngine initialized and started")
+            }
+        } else {
+            print("ℹ️ Local-first sync disabled - using legacy Firebase direct access")
+        }
     }
     
     var body: some Scene {

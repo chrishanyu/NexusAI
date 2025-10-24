@@ -159,6 +159,9 @@ final class UserRepository: UserRepositoryProtocol {
         
         try database.update(localUser)
         try database.save()
+        
+        // Notify observers of changes
+        database.notifyChanges()
     }
     
     func updateProfile(
@@ -184,6 +187,9 @@ final class UserRepository: UserRepositoryProtocol {
         
         try database.update(localUser)
         try database.save()
+        
+        // Notify observers of changes
+        database.notifyChanges()
     }
     
     func deleteUser(userId: String) async throws {
@@ -194,6 +200,9 @@ final class UserRepository: UserRepositoryProtocol {
         if let localUser = try database.fetchOne(LocalUser.self, where: predicate) {
             try database.delete(localUser)
             try database.save()
+            
+            // Notify observers of changes
+            database.notifyChanges()
         }
     }
 }

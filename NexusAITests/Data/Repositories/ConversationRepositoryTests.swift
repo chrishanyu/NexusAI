@@ -323,8 +323,11 @@ final class ConversationRepositoryTests: XCTestCase {
         try database.insert(conversation)
         try database.save()
         
+        // Trigger notification for event-driven updates
+        database.notifyChanges()
+        
         // Wait for stream to emit
-        try await Task.sleep(nanoseconds: 600_000_000) // 0.6 seconds
+        try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
         
         task.cancel()
         

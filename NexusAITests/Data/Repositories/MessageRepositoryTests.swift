@@ -254,8 +254,11 @@ final class MessageRepositoryTests: XCTestCase {
         try database.insert(message)
         try database.save()
         
+        // Trigger notification for event-driven updates
+        database.notifyChanges()
+        
         // Wait for stream to emit
-        try await Task.sleep(nanoseconds: 600_000_000) // 0.6 seconds (longer than polling interval)
+        try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
         
         task.cancel()
         

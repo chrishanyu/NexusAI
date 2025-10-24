@@ -142,6 +142,9 @@ final class ConversationRepository: ConversationRepositoryProtocol {
         try database.insert(localConversation)
         try database.save()
         
+        // Notify observers of changes
+        database.notifyChanges()
+        
         return conversation
     }
     
@@ -171,6 +174,9 @@ final class ConversationRepository: ConversationRepositoryProtocol {
         try database.insert(localConversation)
         try database.save()
         
+        // Notify observers of changes
+        database.notifyChanges()
+        
         return conversation
     }
     
@@ -193,6 +199,9 @@ final class ConversationRepository: ConversationRepositoryProtocol {
         
         try database.update(localConversation)
         try database.save()
+        
+        // Notify observers of changes
+        database.notifyChanges()
     }
     
     func updateGroupName(conversationId: String, groupName: String) async throws {
@@ -210,6 +219,9 @@ final class ConversationRepository: ConversationRepositoryProtocol {
         
         try database.update(localConversation)
         try database.save()
+        
+        // Notify observers of changes
+        database.notifyChanges()
     }
     
     func addParticipant(
@@ -245,6 +257,9 @@ final class ConversationRepository: ConversationRepositoryProtocol {
         
         try database.update(localConversation)
         try database.save()
+        
+        // Notify observers of changes
+        database.notifyChanges()
     }
     
     func removeParticipant(conversationId: String, userId: String) async throws {
@@ -273,6 +288,9 @@ final class ConversationRepository: ConversationRepositoryProtocol {
         
         try database.update(localConversation)
         try database.save()
+        
+        // Notify observers of changes
+        database.notifyChanges()
     }
     
     func deleteConversation(conversationId: String) async throws {
@@ -283,6 +301,9 @@ final class ConversationRepository: ConversationRepositoryProtocol {
         if let localConversation = try database.fetchOne(LocalConversation.self, where: predicate) {
             try database.delete(localConversation)
             try database.save()
+            
+            // Notify observers of changes
+            database.notifyChanges()
         }
     }
 }

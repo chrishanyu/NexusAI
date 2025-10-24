@@ -42,22 +42,29 @@ class ConversationListViewModel: ObservableObject {
         return uid
     }
     
-    /// Service for conversation operations
-    private let conversationService = ConversationService()
+    // MARK: - Local-First Sync Dependencies (if enabled)
     
-    /// Service for message operations (for unread counts)
-    private let messageService = MessageService()
+    private var conversationRepository: ConversationRepositoryProtocol?
+    private var messageRepository: MessageRepositoryProtocol?
     
-    /// Service for local storage operations
-    private let localStorageService = LocalStorageService.shared
+    // MARK: - Legacy Dependencies (if local-first disabled)
     
-    /// Firestore database reference
-    private let db = FirebaseService.shared.db
+    /// Service for conversation operations (legacy)
+    private var conversationService: ConversationService?
+    
+    /// Service for message operations (legacy)
+    private var messageService: MessageService?
+    
+    /// Service for local storage operations (legacy)
+    private var localStorageService: LocalStorageService?
+    
+    /// Firestore database reference (legacy)
+    private var db: Firestore?
     
     /// Lazy presence service - created on first access (after Firebase is configured)
     private lazy var presenceService = PresenceService()
     
-    /// Firestore listener registration for cleanup
+    /// Firestore listener registration for cleanup (legacy)
     private var conversationListener: ListenerRegistration?
     
     /// Presence listener registration for cleanup
@@ -65,6 +72,9 @@ class ConversationListViewModel: ObservableObject {
     
     /// Combine cancellables
     private var cancellables = Set<AnyCancellable>()
+    
+    /// Task for listening to repository conversations
+    private var repositoryListenerTask: Task<Void, Never>?
     
     /// Dictionary tracking online status of users (userId -> isOnline)
     @Published var userPresenceMap: [String: Bool] = [:]
@@ -107,10 +117,31 @@ class ConversationListViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    /// Initialize the view model and start listening to conversations
-    init() {
-        // Load cached conversations immediately for offline support
-        loadCachedConversations()
+    /// Initialize the view model with optional repositories
+    /// - Parameters:
+    ///   - conversationRepository: Optional conversation repository (for testing or local-first sync)
+    ///   - messageRepository: Optional message repository (for testing or local-first sync)
+    init(
+        conversationRepository: ConversationRepositoryProtocol? = nil,
+        messageRepository: MessageRepositoryProtocol? = nil
+    ) {
+        // Set up dependencies based on feature flag
+        if Constants.FeatureFlags.isLocalFirstSyncEnabled {
+            // Use repositories (local-first sync)
+            self.conversationRepository = conversationRepository ?? RepositoryFactory.shared.conversationRepository
+            self.messageRepository = messageRepository ?? RepositoryFactory.shared.messageRepository
+            print("✅ ConversationListViewModel using local-first sync (repositories)")
+        } else {
+            // Use legacy services (direct Firebase)
+            self.conversationService = ConversationService()
+            self.messageService = MessageService()
+            self.localStorageService = LocalStorageService.shared
+            self.db = FirebaseService.shared.db
+            print("✅ ConversationListViewModel using legacy Firebase services")
+            
+            // Load cached conversations immediately for offline support (legacy only)
+            loadCachedConversations()
+        }
         
         // Start listening to conversations for real-time updates
         listenToConversations()
@@ -120,6 +151,8 @@ class ConversationListViewModel: ObservableObject {
     deinit {
         conversationListener?.remove()
         conversationListener = nil
+        repositoryListenerTask?.cancel()
+        repositoryListenerTask = nil
         presenceListener?.remove()
         presenceListener = nil
     }
@@ -161,12 +194,44 @@ class ConversationListViewModel: ObservableObject {
     
     // MARK: - Private Methods
     
-    /// Set up Firestore snapshot listener for conversations
+    /// Set up listener for conversations (repository or Firestore)
     private func listenToConversations() {
         guard !currentUserId.isEmpty else {
             errorMessage = "Not authenticated"
             return
         }
+        
+        if let repository = conversationRepository {
+            // Repository mode: Use AsyncStream
+            isLoading = true
+            errorMessage = nil
+            
+            repositoryListenerTask = Task { @MainActor in
+                for await conversations in repository.observeConversations(userId: currentUserId) {
+                    self.conversations = conversations.sorted {
+                        let date1 = $0.updatedAt ?? $0.createdAt
+                        let date2 = $1.updatedAt ?? $1.createdAt
+                        return date1 > date2
+                    }
+                    self.isLoading = false
+                    
+                    // Calculate unread counts using repository
+                    await self.calculateUnreadCountsWithRepository()
+                    
+                    // Update presence listeners
+                    self.startPresenceListening()
+                    
+                    // Reduced logging
+                    #if DEBUG
+                    print("💬 \(conversations.count) conversations")
+                    #endif
+                }
+            }
+            return
+        }
+        
+        // Legacy path: Use Firestore snapshot listener
+        guard let database = db else { return }
         
         isLoading = true
         errorMessage = nil
@@ -175,7 +240,7 @@ class ConversationListViewModel: ObservableObject {
         conversationListener?.remove()
         
         // Query conversations where current user is a participant
-        conversationListener = db
+        conversationListener = database
             .collection(Constants.Collections.conversations)
             .whereField("participantIds", arrayContains: currentUserId)
             .order(by: "updatedAt", descending: true)
@@ -266,10 +331,12 @@ class ConversationListViewModel: ObservableObject {
         startPresenceListening()
     }
     
-    /// Load cached conversations from local storage
+    /// Load cached conversations from local storage (legacy mode only)
     private func loadCachedConversations() {
+        guard let localStorage = localStorageService else { return }
+        
         do {
-            let cachedConversations = try localStorageService.getCachedConversations()
+            let cachedConversations = try localStorage.getCachedConversations()
             
             // Convert cached conversations back to Conversation models
             let conversations = cachedConversations.compactMap { cached -> Conversation? in
@@ -313,19 +380,21 @@ class ConversationListViewModel: ObservableObject {
         }
     }
     
-    /// Cache conversations to local storage
+    /// Cache conversations to local storage (legacy mode only)
     private func cacheConversations(_ conversations: [Conversation]) {
+        guard let localStorage = localStorageService else { return }
+        
         // Cache in background to avoid blocking UI
         Task {
             do {
                 // Clear existing cache to avoid duplicates
                 try await MainActor.run {
-                    try self.localStorageService.clearCachedConversations()
+                    try localStorage.clearCachedConversations()
                 }
                 
                 // Cache new conversations
                 try await MainActor.run {
-                    try self.localStorageService.cacheConversations(conversations)
+                    try localStorage.cacheConversations(conversations)
                 }
             } catch {
                 print("Failed to cache conversations: \(error.localizedDescription)")
@@ -334,9 +403,42 @@ class ConversationListViewModel: ObservableObject {
         }
     }
     
-    /// Calculate unread counts for all conversations
+    /// Calculate unread counts using repository (local-first sync)
+    private func calculateUnreadCountsWithRepository() async {
+        guard let repository = messageRepository else { return }
+        
+        let userId = currentUserId
+        guard !userId.isEmpty else { return }
+        
+        var newCounts: [String: Int] = [:]
+        
+        // Get unread counts from repository for each conversation
+        for conversation in conversations {
+            guard let conversationId = conversation.id else { continue }
+            
+            do {
+                let count = try await repository.getUnreadCount(
+                    conversationId: conversationId,
+                    userId: userId
+                )
+                newCounts[conversationId] = count
+            } catch {
+                print("⚠️ Failed to get unread count for conversation \(conversationId): \(error.localizedDescription)")
+                newCounts[conversationId] = 0
+            }
+        }
+        
+        // Update on main thread
+        await MainActor.run {
+            self.conversationUnreadCounts = newCounts
+        }
+    }
+    
+    /// Calculate unread counts for all conversations (legacy mode)
     /// This queries Firestore for unread message counts and updates the conversationUnreadCounts dictionary
     private func calculateUnreadCounts() async {
+        guard let service = messageService else { return }
+        
         // Get current user ID
         let userId = currentUserId
         guard !userId.isEmpty else { return }
@@ -349,7 +451,7 @@ class ConversationListViewModel: ObservableObject {
             guard let conversationId = conversation.id else { continue }
             
             do {
-                let count = try await messageService.getUnreadCount(
+                let count = try await service.getUnreadCount(
                     conversationId: conversationId,
                     userId: userId
                 )
