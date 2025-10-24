@@ -205,12 +205,15 @@ class ChatViewModel: ObservableObject {
             // Return early if no messages to mark as read
             guard !messageIds.isEmpty else { return }
             
-            print("📖 Marking \(messageIds.count) messages as read...")
+            print("📖 [READ_RECEIPT] Marking \(messageIds.count) messages as read...")
+            print("📖 [READ_RECEIPT] Message IDs: \(messageIds)")
+            print("📖 [READ_RECEIPT] User ID: \(currentUserId)")
             
             // Mark messages as read using appropriate service
             do {
                 if let repository = messageRepository {
                     // Use repository (local-first sync)
+                    print("📖 [READ_RECEIPT] Using repository to mark as read")
                     try await repository.markMessagesAsRead(
                         messageIds: messageIds,
                         conversationId: conversationId,
@@ -218,16 +221,17 @@ class ChatViewModel: ObservableObject {
                     )
                 } else if let service = messageService {
                     // Use legacy service
+                    print("📖 [READ_RECEIPT] Using legacy service to mark as read")
                     try await service.markMessagesAsRead(
                         messageIds: messageIds,
                         conversationId: conversationId,
                         userId: currentUserId
                     )
                 }
-                print("✅ Successfully marked \(messageIds.count) messages as read")
+                print("✅ [READ_RECEIPT] Successfully marked \(messageIds.count) messages as read")
             } catch {
                 // Silent failure - read receipts shouldn't block chat functionality
-                print("⚠️ Failed to mark messages as read: \(error.localizedDescription)")
+                print("⚠️ [READ_RECEIPT] Failed to mark messages as read: \(error.localizedDescription)")
             }
         }
     }
@@ -521,6 +525,10 @@ class ChatViewModel: ObservableObject {
                         self.hasMoreMessages = false
                     }
                     
+                    // Mark new unread messages as read (if chat is visible)
+                    // This handles messages that arrive while user is already in the chat
+                    self.markVisibleMessagesAsRead()
+                    
                     // Reduced logging - only in debug mode
                     #if DEBUG
                     print("📨 \(messages.count) messages")
@@ -595,8 +603,9 @@ class ChatViewModel: ObservableObject {
         // Sort messages by timestamp
         allMessages.sort { $0.timestamp < $1.timestamp }
         
-        // NOTE: We no longer auto-mark messages as read here.
-        // Read status is only marked when user is actively viewing (ChatView lifecycle events)
+        // Mark new unread messages as read (if chat is visible)
+        // This handles messages that arrive while user is already in the chat
+        markVisibleMessagesAsRead()
     }
     
     /// Cache messages to local storage (legacy mode only)

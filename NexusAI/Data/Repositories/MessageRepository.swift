@@ -165,33 +165,47 @@ final class MessageRepository: MessageRepositoryProtocol {
         conversationId: String,
         userId: String
     ) async throws {
+        print("📖 [REPO] markMessagesAsRead called with \(messageIds.count) messages")
+        
         for messageId in messageIds {
             let predicate = #Predicate<LocalMessage> { message in
                 message.id == messageId
             }
             
             if let localMessage = try database.fetchOne(LocalMessage.self, where: predicate) {
+                print("📖 [REPO] Found message \(messageId)")
+                print("📖 [REPO] Before - readBy: \(localMessage.readBy), status: \(localMessage.status), syncStatus: \(localMessage.syncStatus)")
+                
                 // Add userId to readBy if not already present
                 if !localMessage.readBy.contains(userId) {
                     localMessage.readBy.append(userId)
+                    print("📖 [REPO] Added \(userId) to readBy array")
                 }
                 
                 // Update status if sender is not current user
                 if localMessage.senderId != userId {
                     localMessage.status = .read
+                    print("📖 [REPO] Updated status to .read")
                 }
                 
                 // Mark as pending sync
                 localMessage.syncStatus = .pending
+                print("📖 [REPO] Marked as .pending for sync")
+                
+                print("📖 [REPO] After - readBy: \(localMessage.readBy), status: \(localMessage.status), syncStatus: \(localMessage.syncStatus)")
                 
                 try database.update(localMessage)
+            } else {
+                print("⚠️ [REPO] Message \(messageId) not found in local database")
             }
         }
         
         try database.save()
+        print("📖 [REPO] Database saved")
         
         // Notify observers of changes
         database.notifyChanges()
+        print("📖 [REPO] Database changes notified")
     }
     
     func markMessagesAsDelivered(
