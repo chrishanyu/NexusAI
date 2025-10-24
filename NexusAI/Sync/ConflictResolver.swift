@@ -24,6 +24,39 @@ final class ConflictResolver {
         let localTimestamp = local.serverTimestamp ?? local.timestamp
         let remoteTimestamp = remote.timestamp
         
+        // Special case: If only status/readBy/deliveredTo differ (not message content),
+        // prefer the version with more advanced status (.read > .delivered > .sent)
+        if abs(localTimestamp.timeIntervalSince(remoteTimestamp)) < 1.0 {
+            // Timestamps are effectively the same - check if this is a status-only update
+            let contentMatches = local.text == remote.text &&
+                                 local.senderId == remote.senderId
+            
+            if contentMatches {
+                // Content is the same, only status differs - prefer higher status
+                // Status progression: sending < sent < delivered < read
+                let localStatusPriority = statusPriority(local.status)
+                let remoteStatusPriority = statusPriority(remote.status)
+                
+                if localStatusPriority > remoteStatusPriority {
+                    // Local has more advanced status (e.g., .read vs .delivered)
+                    local.syncStatus = .pending // Sync local status back to server
+                    return .useLocal(local)
+                } else if remoteStatusPriority > localStatusPriority {
+                    // Remote has more advanced status
+                    let updatedLocal = LocalMessage.from(remote, syncStatus: .synced)
+                    return .useRemote(updatedLocal)
+                }
+                // Status is the same - check array lengths (more reads = newer)
+                if local.readBy.count > remote.readBy.count {
+                    local.syncStatus = .pending
+                    return .useLocal(local)
+                } else if remote.readBy.count > local.readBy.count {
+                    let updatedLocal = LocalMessage.from(remote, syncStatus: .synced)
+                    return .useRemote(updatedLocal)
+                }
+            }
+        }
+        
         // Last-Write-Wins: Keep the message with the most recent timestamp
         if remoteTimestamp > localTimestamp {
             // Remote is newer - update local with remote data
@@ -37,6 +70,17 @@ final class ConflictResolver {
             // Timestamps are equal - remote wins by default (server is source of truth)
             let updatedLocal = LocalMessage.from(remote, syncStatus: .synced)
             return .useRemote(updatedLocal)
+        }
+    }
+    
+    /// Get priority value for message status (higher = more advanced)
+    private func statusPriority(_ status: MessageStatus) -> Int {
+        switch status {
+        case .sending: return 0
+        case .sent: return 1
+        case .delivered: return 2
+        case .read: return 3
+        case .failed: return 0 // Treat as lowest priority
         }
     }
     

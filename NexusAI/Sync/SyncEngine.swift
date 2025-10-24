@@ -233,6 +233,13 @@ final class SyncEngine {
             }
             let pendingMessages = try database.fetch(LocalMessage.self, where: pendingPredicate)
             
+            if !pendingMessages.isEmpty {
+                print("📤 [SYNC] Found \(pendingMessages.count) pending messages to sync")
+                for msg in pendingMessages {
+                    print("📤 [SYNC] Pending: \(msg.id) - readBy: \(msg.readBy), status: \(msg.status)")
+                }
+            }
+            
             // Query for failed messages
             let failedPredicate = #Predicate<LocalMessage> { message in
                 message.syncStatusRaw == "failed"
@@ -588,35 +595,62 @@ final class SyncEngine {
             return
         }
         
+        print("📥 [PULL] handleMessageModified called for: \(messageId)")
+        print("📥 [PULL] Remote readBy: \(message.readBy), status: \(message.status)")
+        
         // Fetch local version
         let predicate = #Predicate<LocalMessage> { localMessage in
             localMessage.id == messageId
         }
         
         guard let localMessage = try database.fetchOne(LocalMessage.self, where: predicate) else {
+            print("📥 [PULL] Message not found locally, treating as new")
             // Message doesn't exist locally - treat as new
             try await handleMessageAdded(message)
             return
         }
         
+        print("📥 [PULL] Local readBy: \(localMessage.readBy), status: \(localMessage.status), syncStatus: \(localMessage.syncStatus)")
+        
         // Skip processing if local message is already synced and timestamps match
         // This prevents unnecessary DB operations when the pull listener receives
         // a message that we just pushed (avoiding the push→pull→update cycle)
+        // UNLESS readBy/deliveredTo arrays OR status have changed (read receipts)
         if localMessage.syncStatus == .synced && 
            abs(localMessage.timestamp.timeIntervalSince(message.timestamp)) < 1.0 {
-            // Local version is already synced and up-to-date - skip processing
-            return
+            // Check if read receipts, delivery status, or message status changed
+            let readByChanged = Set(localMessage.readBy) != Set(message.readBy)
+            let deliveredToChanged = Set(localMessage.deliveredTo) != Set(message.deliveredTo)
+            let statusChanged = localMessage.status != message.status
+            
+            print("📥 [PULL] Early exit check - synced: true, timestamps match: true")
+            print("📥 [PULL] readByChanged: \(readByChanged), deliveredToChanged: \(deliveredToChanged), statusChanged: \(statusChanged)")
+            
+            if !readByChanged && !deliveredToChanged && !statusChanged {
+                // No status changes - skip processing
+                print("📥 [PULL] No changes detected - skipping processing")
+                return
+            }
+            // Status changed - continue processing to update readBy/deliveredTo/status
+            print("📥 [PULL] Status fields changed - continuing to process update")
         }
         
         // Resolve conflict using ConflictResolver
         let resolution = conflictResolver.resolveMessage(local: localMessage, remote: message)
         
+        print("📥 [PULL] Conflict resolution result: \(resolution.isLocalWinner ? "local wins" : "remote wins")")
+        
         // Update sync status and fields based on resolution
         if resolution.isLocalWinner {
             // Local version won - mark as pending to sync back
             localMessage.syncStatus = .pending
+            print("📥 [PULL] Local wins - marking as pending to sync back")
         } else {
             // Remote version won - update ALL fields from remote
+            print("📥 [PULL] Remote wins - updating local with remote data")
+            print("📥 [PULL] Updating readBy: \(localMessage.readBy) → \(message.readBy)")
+            print("📥 [PULL] Updating status: \(localMessage.status) → \(message.status)")
+            
             localMessage.text = message.text
             localMessage.senderName = message.senderName
             localMessage.senderId = message.senderId
@@ -628,17 +662,16 @@ final class SyncEngine {
             localMessage.serverTimestamp = message.timestamp
             localMessage.syncStatus = .synced
             localMessage.updatedAt = Date()
+            
+            print("📥 [PULL] Local now has - readBy: \(localMessage.readBy), status: \(localMessage.status)")
         }
-        // Reduced logging - conflicts are rare and logged in debug mode
-        #if DEBUG
-        let winner = resolution.isLocalWinner ? "local" : "remote"
-        print("🔄 Conflict resolved (\(winner)): \(messageId)")
-        #endif
         
         try database.save()
+        print("📥 [PULL] Database saved")
         
         // Notify observers of changes
         database.notifyChanges()
+        print("📥 [PULL] Changes notified - UI should update")
     }
     
     /// Handle deleted message from Firestore
@@ -1086,10 +1119,9 @@ final class SyncEngine {
         }
         
         do {
-            // Reduced logging - only log in debug mode
-            #if DEBUG
-            print("📤 Syncing: \(localMessage.id)")
-            #endif
+            print("📤 [SYNC_MSG] Starting sync for message: \(localMessage.id)")
+            print("📤 [SYNC_MSG] readBy: \(localMessage.readBy), deliveredTo: \(localMessage.deliveredTo)")
+            print("📤 [SYNC_MSG] status: \(localMessage.status), syncStatus: \(localMessage.syncStatus)")
             
             // Get conversation to retrieve participant IDs
             let conversationRef = firebaseService.db
@@ -1100,31 +1132,59 @@ final class SyncEngine {
                 throw NSError(domain: "SyncEngine", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to get participant IDs"])
             }
             
-            // Create message data
-            let messageData: [String: Any] = [
-                "conversationId": localMessage.conversationId,
-                "senderId": localMessage.senderId,
-                "senderName": localMessage.senderName,
-                "text": localMessage.text,
-                "timestamp": Timestamp(date: localMessage.timestamp),
-                "status": MessageStatus.delivered.rawValue,
-                "readBy": localMessage.readBy,
-                "deliveredTo": localMessage.deliveredTo.isEmpty ? participantIds : localMessage.deliveredTo,
-                "localId": localMessage.localId
-            ]
-            
             // Check if message already has Firestore ID (updating existing)
             let docRef: DocumentReference
             if localMessage.id != localMessage.localId {
                 // Message has Firestore ID - update existing document
+                // Use arrayUnion for readBy/deliveredTo to prevent race conditions
                 docRef = firebaseService.db
                     .collection(Constants.Collections.conversations)
                     .document(localMessage.conversationId)
                     .collection(Constants.Collections.messages)
                     .document(localMessage.id)
-                try await docRef.setData(messageData, merge: true)
+                
+                var updateData: [String: Any] = [:]
+                
+                // Use arrayUnion to merge arrays instead of overwriting
+                if !localMessage.readBy.isEmpty {
+                    updateData["readBy"] = FieldValue.arrayUnion(localMessage.readBy)
+                    print("📤 [SYNC_MSG] Adding readBy: \(localMessage.readBy)")
+                }
+                if !localMessage.deliveredTo.isEmpty {
+                    updateData["deliveredTo"] = FieldValue.arrayUnion(localMessage.deliveredTo)
+                    print("📤 [SYNC_MSG] Adding deliveredTo: \(localMessage.deliveredTo)")
+                }
+                
+                // Determine status based on readBy/deliveredTo arrays
+                // If anyone other than sender has read it, status is .read
+                if localMessage.readBy.contains(where: { $0 != localMessage.senderId }) {
+                    updateData["status"] = MessageStatus.read.rawValue
+                    print("📤 [SYNC_MSG] Setting status to .read")
+                } else if localMessage.deliveredTo.contains(where: { $0 != localMessage.senderId }) {
+                    updateData["status"] = MessageStatus.delivered.rawValue
+                    print("📤 [SYNC_MSG] Setting status to .delivered")
+                } else {
+                    updateData["status"] = MessageStatus.sent.rawValue
+                    print("📤 [SYNC_MSG] Setting status to .sent")
+                }
+                
+                print("📤 [SYNC_MSG] Updating Firestore with data: \(updateData)")
+                try await docRef.updateData(updateData)
+                print("📤 [SYNC_MSG] Firestore update successful")
             } else {
-                // New message - create document
+                // New message - create document with full data
+                let messageData: [String: Any] = [
+                    "conversationId": localMessage.conversationId,
+                    "senderId": localMessage.senderId,
+                    "senderName": localMessage.senderName,
+                    "text": localMessage.text,
+                    "timestamp": Timestamp(date: localMessage.timestamp),
+                    "status": MessageStatus.delivered.rawValue,
+                    "readBy": localMessage.readBy,
+                    "deliveredTo": localMessage.deliveredTo.isEmpty ? participantIds : localMessage.deliveredTo,
+                    "localId": localMessage.localId
+                ]
+                
                 docRef = try await firebaseService.db
                     .collection(Constants.Collections.conversations)
                     .document(localMessage.conversationId)

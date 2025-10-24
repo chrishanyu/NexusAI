@@ -23,6 +23,9 @@ struct NexusApp: App {
     @Environment(\.scenePhase) private var scenePhase
     
     init() {
+        // Disable verbose Firebase logging
+        FirebaseConfiguration.shared.setLoggerLevel(.error)
+        
         FirebaseApp.configure()
         
         // Initialize banner manager with notification manager reference
