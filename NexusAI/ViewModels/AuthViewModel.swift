@@ -35,8 +35,8 @@ class AuthViewModel: ObservableObject {
     private let authService: AuthServiceProtocol
     private var authStateHandle: AuthStateDidChangeListenerHandle?
     
-    /// Lazy presence service - created on first access (after Firebase is configured)
-    private lazy var presenceService = PresenceService()
+    /// Use the new Realtime Database presence service (singleton)
+    private let presenceService = RealtimePresenceService.shared
     
     // MARK: - Local-First Sync Dependencies (if enabled)
     
@@ -108,10 +108,16 @@ class AuthViewModel: ObservableObject {
             // Update current user on success
             currentUser = user
             
-            // Set user as online
+            // Initialize presence and set user online
             if let userId = user.id {
-                try? await presenceService.setUserOnline(userId: userId)
-                print("👥 User presence set to online")
+                presenceService.initializePresence(for: userId)
+                
+                do {
+                    try await presenceService.setUserOnline(userId: userId)
+                    print("👥 User presence set to online (RTDB)")
+                } catch {
+                    print("⚠️ Failed to set user online: \(error.localizedDescription)")
+                }
             }
             
             print("✅ Sign-in successful: \(user.displayName)")
@@ -191,8 +197,12 @@ class AuthViewModel: ObservableObject {
         do {
             // Set user offline before signing out
             if let userId = currentUser?.id {
-                try? await presenceService.setUserOffline(userId: userId)
-                print("👥 User presence set to offline")
+                do {
+                    try await presenceService.setUserOffline(userId: userId, delay: 0)
+                    print("👥 User presence set to offline (RTDB)")
+                } catch {
+                    print("⚠️ Failed to set user offline: \(error.localizedDescription)")
+                }
             }
             
             // Call AuthService to sign out
@@ -247,6 +257,18 @@ class AuthViewModel: ObservableObject {
             
             // Update current user
             currentUser = user
+            
+            // Initialize presence for the authenticated user
+            if user != nil {
+                presenceService.initializePresence(for: userId)
+                
+                do {
+                    try await presenceService.setUserOnline(userId: userId)
+                    print("👥 User presence initialized and set online (auth state listener)")
+                } catch {
+                    print("⚠️ Failed to set user online: \(error.localizedDescription)")
+                }
+            }
             
         } catch {
             print("⚠️ Failed to load user profile: \(error.localizedDescription)")

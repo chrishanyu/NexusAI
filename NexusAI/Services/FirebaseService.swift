@@ -9,6 +9,7 @@ import Foundation
 import FirebaseCore
 import FirebaseFirestore
 import FirebaseAuth
+import FirebaseDatabase
 
 /// Singleton service for Firebase initialization and configuration
 class FirebaseService {
@@ -19,6 +20,7 @@ class FirebaseService {
     // MARK: - Properties
     let db: Firestore
     let auth: Auth
+    let database: DatabaseReference
     
     // MARK: - Initialization
     private init() {
@@ -34,6 +36,7 @@ class FirebaseService {
         // Assign to properties
         self.db = firestoreInstance
         self.auth = Auth.auth()
+        self.database = Database.database().reference()
     }
     
     // MARK: - Helper Methods

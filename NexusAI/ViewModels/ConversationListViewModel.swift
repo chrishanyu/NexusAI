@@ -9,6 +9,7 @@ import Foundation
 import Combine
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseDatabase
 
 /// ViewModel for managing the conversation list screen
 @MainActor
@@ -61,14 +62,14 @@ class ConversationListViewModel: ObservableObject {
     /// Firestore database reference (legacy)
     private var db: Firestore?
     
-    /// Lazy presence service - created on first access (after Firebase is configured)
-    private lazy var presenceService = PresenceService()
+    /// Presence service - use realtime database for reliable presence
+    private let presenceService = RealtimePresenceService.shared
     
     /// Firestore listener registration for cleanup (legacy)
     private var conversationListener: ListenerRegistration?
     
-    /// Presence listener registration for cleanup
-    private var presenceListener: ListenerRegistration?
+    /// Presence listener handles for cleanup (RTDB)
+    private var presenceListenerHandles: [DatabaseHandle] = []
     
     /// Combine cancellables
     private var cancellables = Set<AnyCancellable>()
@@ -153,8 +154,11 @@ class ConversationListViewModel: ObservableObject {
         conversationListener = nil
         repositoryListenerTask?.cancel()
         repositoryListenerTask = nil
-        presenceListener?.remove()
-        presenceListener = nil
+        
+        // Clean up RTDB presence listeners
+        // Note: Individual listeners are managed by RealtimePresenceService singleton
+        // We just clear our local reference array
+        presenceListenerHandles.removeAll()
     }
     
     // MARK: - Public Methods
@@ -549,9 +553,8 @@ class ConversationListViewModel: ObservableObject {
     
     /// Start listening to presence for all conversation participants
     private func startPresenceListening() {
-        // Remove existing listener if any
-        presenceListener?.remove()
-        presenceListener = nil
+        // Clean up existing listeners if any
+        presenceListenerHandles.removeAll()
         
         // Collect all unique user IDs from conversations (excluding current user)
         var allParticipantIds = Set<String>()
@@ -562,17 +565,25 @@ class ConversationListViewModel: ObservableObject {
         }
         
         // Only set up listener if we have participants to track
-        guard !allParticipantIds.isEmpty else { return }
+        guard !allParticipantIds.isEmpty else {
+            print("⚠️ No participants to track presence for")
+            return
+        }
         
-        // Convert to array for Firestore query (limit to 10 due to Firestore 'in' query limitation)
-        let participantIdsArray = Array(allParticipantIds.prefix(10))
+        // Convert to array - RTDB doesn't have the 10-user limit like Firestore!
+        let participantIdsArray = Array(allParticipantIds)
+        print("👥 Setting up presence listeners for \(participantIdsArray.count) users:")
+        participantIdsArray.forEach { print("   - \($0)") }
         
-        // Set up presence listener
-        presenceListener = presenceService.listenToMultiplePresence(userIds: participantIdsArray) { [weak self] presenceMap in
+        // Set up presence listener using RTDB
+        presenceListenerHandles = presenceService.listenToMultiplePresence(userIds: participantIdsArray) { [weak self] presenceMap in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.userPresenceMap = presenceMap
-                print("👥 Presence updated for \(presenceMap.count) users")
+                print("👥 Presence updated for \(presenceMap.count) users:")
+                presenceMap.forEach { userId, isOnline in
+                    print("   - \(userId): \(isOnline ? "🟢 ONLINE" : "⚫️ offline")")
+                }
             }
         }
     }

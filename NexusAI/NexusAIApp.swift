@@ -7,6 +7,7 @@
 
 import SwiftUI
 import FirebaseCore
+import UIKit
 
 @main
 struct NexusApp: App {
@@ -99,23 +100,51 @@ struct NexusApp: App {
         guard let userId = authViewModel.currentUser?.id else { return }
         
         Task {
-            // Create presence service instance here (after Firebase is configured)
-            let presenceService = PresenceService()
+            // Use RealtimePresenceService for robust presence tracking
+            let presenceService = RealtimePresenceService.shared
             
             switch newPhase {
             case .active:
-                // App became active - set user online
-                try? await presenceService.setUserOnline(userId: userId)
-                print("👥 App became active - user set to online")
+                // App became active - initialize presence and set user online
+                presenceService.initializePresence(for: userId)
+                
+                do {
+                    try await presenceService.setUserOnline(userId: userId)
+                    print("👥 App became active - user set to online (RTDB)")
+                } catch {
+                    print("⚠️ Failed to set user online: \(error.localizedDescription)")
+                }
                 
             case .background:
-                // App went to background - set user offline
-                try? await presenceService.setUserOffline(userId: userId)
-                print("👥 App went to background - user set to offline")
+                // App went to background - set user offline IMMEDIATELY (no delay)
+                // Request background time to ensure the operation completes
+                var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+                backgroundTaskID = UIApplication.shared.beginBackgroundTask {
+                    // If we run out of time, end the task
+                    UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                    backgroundTaskID = .invalid
+                    print("⚠️ Background task expired before completing offline status update")
+                }
+                
+                do {
+                    try await presenceService.setUserOffline(userId: userId, delay: 0)
+                    print("👥 App went to background - user set offline immediately")
+                } catch {
+                    print("⚠️ Failed to set user offline: \(error.localizedDescription)")
+                }
+                
+                // End the background task
+                if backgroundTaskID != .invalid {
+                    UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                    backgroundTaskID = .invalid
+                }
+                
+                // Note: onDisconnect() callback will also handle offline status
+                // if the app is force-quit or connection is lost
                 
             case .inactive:
-                // App is temporarily inactive (e.g., phone call)
-                // Don't change presence status
+                // App is temporarily inactive (e.g., phone call, notification center)
+                // Don't change presence status - user is still "using" the app
                 break
                 
             @unknown default:

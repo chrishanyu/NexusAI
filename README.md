@@ -67,8 +67,41 @@ Nexus/
 - [x] Offline support with sync
 - [x] Read receipts
 - [x] Typing indicators
-- [x] Online/offline presence
+- [x] **Robust online/offline presence system**
 - [x] Push notifications
+
+## Architecture Highlights
+
+### Robust Presence System
+
+The app implements a production-ready presence tracking system using Firebase Realtime Database (RTDB) for reliable online/offline status.
+
+**Key Features:**
+- **Server-Side Disconnect Detection** - Uses RTDB's `onDisconnect()` callback to automatically set users offline when connection drops, even if the app crashes or is force-quit
+- **Heartbeat Mechanism** - Sends heartbeat every 30 seconds to keep presence fresh and detect stale connections (>60s = offline)
+- **Offline Queue** - Queues presence updates when offline and auto-flushes when network reconnects using Swift Actor for thread-safe operations
+- **iOS Background Task Integration** - Ensures offline status updates complete before iOS suspends the app
+- **Hybrid Sync** - RTDB for real-time updates + Firestore for persistence and queries
+
+**Architecture:**
+```
+RTDB (presence/{userId})
+├── Real-time presence updates
+├── Connection monitoring (.info/connected)
+├── onDisconnect() callbacks
+└── Heartbeat timestamps
+
+Firestore (users/{userId})
+└── Persistent isOnline field for queries
+```
+
+**Implementation:**
+- `RealtimePresenceService` - Singleton service managing all presence operations
+- `PresenceQueue` Actor - Thread-safe offline queue with deduplication
+- App lifecycle integration in `NexusAIApp.swift`
+- Auth state listener integration in `AuthViewModel`
+
+See `/tasks/prd-robust-presence-system.md` for complete documentation.
 
 ## Roadmap
 
