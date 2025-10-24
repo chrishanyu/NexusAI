@@ -23,7 +23,7 @@ final class SyncEngine {
     private let conversationRepository: ConversationRepositoryProtocol
     
     /// Firestore listeners for real-time updates
-    private var messageListener: ListenerRegistration?
+    private var conversationMessageListeners: [String: ListenerRegistration] = [:]
     private var conversationListener: ListenerRegistration?
     private var userListener: ListenerRegistration?
     
@@ -93,11 +93,15 @@ final class SyncEngine {
         cancellables.removeAll()
         
         // Stop pull sync listeners
-        messageListener?.remove()
+        for (conversationId, listener) in conversationMessageListeners {
+            listener.remove()
+            print("🧹 Removed message listener for conversation: \(conversationId)")
+        }
+        conversationMessageListeners.removeAll()
+        
         conversationListener?.remove()
         userListener?.remove()
         
-        messageListener = nil
         conversationListener = nil
         userListener = nil
         
@@ -349,30 +353,103 @@ final class SyncEngine {
     // MARK: - Pull Sync - Message Listener
     
     /// Start listening to Firestore messages for real-time pull sync
+    /// Creates per-conversation listeners based on user's conversations
     private func startMessageListener() {
         guard let currentUserId = firebaseService.currentUserId else {
             print("⚠️ Cannot start message listener: No authenticated user")
             return
         }
         
-        print("📥 Starting message listener for user: \(currentUserId)...")
+        print("📥 Starting message listeners for user: \(currentUserId)...")
         
-        // Listen to all messages across all conversations using collectionGroup
-        // This is more efficient than listening to each conversation separately
-        messageListener = firebaseService.db
-            .collectionGroup("messages")
+        // Observe conversation repository to get user's conversations
+        // When conversations change, add/remove message listeners accordingly
+        Task {
+            do {
+                // Get initial conversations for current user
+                let conversations = try await conversationRepository.getConversations(userId: currentUserId)
+                print("ℹ️ Found \(conversations.count) conversations to monitor")
+                
+                // Start listener for each conversation
+                for conversation in conversations {
+                    guard let conversationId = conversation.id else { continue }
+                    addMessageListenerForConversation(conversationId: conversationId)
+                }
+                
+                // Also observe conversation changes to dynamically add/remove listeners
+                observeConversationChangesForMessageListeners(userId: currentUserId)
+                
+                print("✅ Message listeners started for \(conversations.count) conversations")
+            } catch {
+                print("❌ Error starting message listeners: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    /// Observe conversation changes to dynamically add/remove message listeners
+    private func observeConversationChangesForMessageListeners(userId: String) {
+        // Observe local database for conversation changes
+        NotificationCenter.default
+            .publisher(for: .localDatabaseDidChange)
+            .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                Task { @MainActor in
+                    await self.syncMessageListenersWithConversations(userId: userId)
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    /// Sync message listeners with current conversations
+    private func syncMessageListenersWithConversations(userId: String) async {
+        do {
+            let conversations = try await conversationRepository.getConversations(userId: userId)
+            let currentConversationIds = Set(conversations.compactMap { $0.id })
+            let listeningConversationIds = Set(conversationMessageListeners.keys)
+            
+            // Add listeners for new conversations
+            let newConversations = currentConversationIds.subtracting(listeningConversationIds)
+            for conversationId in newConversations {
+                addMessageListenerForConversation(conversationId: conversationId)
+            }
+            
+            // Remove listeners for conversations user is no longer in
+            let removedConversations = listeningConversationIds.subtracting(currentConversationIds)
+            for conversationId in removedConversations {
+                removeMessageListenerForConversation(conversationId: conversationId)
+            }
+        } catch {
+            print("⚠️ Error syncing message listeners: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Add a message listener for a specific conversation
+    func addMessageListenerForConversation(conversationId: String) {
+        // Skip if already listening
+        guard conversationMessageListeners[conversationId] == nil else {
+            return
+        }
+        
+        print("📥 Adding message listener for conversation: \(conversationId)")
+        
+        let listener = firebaseService.db
+            .collection("conversations").document(conversationId)
+            .collection("messages")
+            .order(by: "timestamp", descending: false)
             .addSnapshotListener { [weak self] snapshot, error in
                 guard let self = self else { return }
                 
                 if let error = error {
                     Task { @MainActor in
-                        self.handleListenerError(error, listenerName: "Message Listener")
+                        print("❌ Message listener error for \(conversationId): \(error.localizedDescription)")
+                        self.handleListenerError(error, listenerName: "Message Listener (\(conversationId))")
                     }
                     return
                 }
                 
                 guard let snapshot = snapshot else {
-                    print("⚠️ Message snapshot is nil")
+                    print("⚠️ Message snapshot is nil for \(conversationId)")
                     return
                 }
                 
@@ -382,7 +459,19 @@ final class SyncEngine {
                 }
             }
         
-        print("✅ Message listener started")
+        conversationMessageListeners[conversationId] = listener
+        print("✅ Message listener added for conversation: \(conversationId)")
+    }
+    
+    /// Remove a message listener for a specific conversation
+    func removeMessageListenerForConversation(conversationId: String) {
+        guard let listener = conversationMessageListeners[conversationId] else {
+            return
+        }
+        
+        print("🧹 Removing message listener for conversation: \(conversationId)")
+        listener.remove()
+        conversationMessageListeners.removeValue(forKey: conversationId)
     }
     
     /// Process message document changes from Firestore

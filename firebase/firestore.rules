@@ -2,18 +2,90 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
+    
+    // Helper function to check if user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is owner of a document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // ====================================
+    // USERS COLLECTION
+    // ====================================
+    match /users/{userId} {
+      // Anyone authenticated can read any user profile (for participant info)
+      allow read: if isSignedIn();
+      
+      // Users can only write their own profile
+      allow create, update: if isSignedIn() && isOwner(userId);
+      
+      // Users cannot delete their own profile (use Cloud Function)
+      allow delete: if false;
+    }
+    
+    // ====================================
+    // CONVERSATIONS COLLECTION
+    // ====================================
+    match /conversations/{conversationId} {
+      // Only participants can read the conversation
+      allow read: if isSignedIn() && 
+                    request.auth.uid in resource.data.participantIds;
+      
+      // Only participants can create a conversation (and must include themselves)
+      allow create: if isSignedIn() && 
+                      request.auth.uid in request.resource.data.participantIds;
+      
+      // Only participants can update conversation metadata
+      allow update: if isSignedIn() && 
+                      request.auth.uid in resource.data.participantIds;
+      
+      // Users cannot delete conversations (use Cloud Function for cleanup)
+      allow delete: if false;
+      
+      // ====================================
+      // MESSAGES SUBCOLLECTION
+      // ====================================
+      match /messages/{messageId} {
+        // Only conversation participants can read messages
+        allow read: if isSignedIn() && 
+                      request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+        
+        // Only conversation participants can create messages
+        // AND the sender must be the authenticated user
+        allow create: if isSignedIn() && 
+                        request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds &&
+                        request.auth.uid == request.resource.data.senderId;
+        
+        // Only conversation participants can update message status (read receipts, etc.)
+        allow update: if isSignedIn() && 
+                        request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+        
+        // Users cannot delete messages (implement soft delete or use Cloud Function)
+        allow delete: if false;
+      }
+    }
+    
+    // ====================================
+    // TYPING INDICATORS COLLECTION
+    // ====================================
+    match /typingIndicators/{indicatorId} {
+      // Anyone authenticated can read typing indicators (will be filtered client-side)
+      allow read: if isSignedIn();
+      
+      // Users can only write their own typing indicators
+      allow write: if isSignedIn() && 
+                     request.resource.data.userId == request.auth.uid;
+    }
+    
+    // ====================================
+    // DENY ALL OTHER COLLECTIONS
+    // ====================================
     match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2025, 11, 19);
+      allow read, write: if false;
     }
   }
 }

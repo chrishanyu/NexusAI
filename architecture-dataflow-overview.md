@@ -62,27 +62,33 @@
 ## Notification System
 
 The notification system has **two distinct subsystems**:
-1. **In-App Notifications** (NotificationBannerManager) - Active now
+1. **In-App Notifications** (NotificationBannerManager) - Active now, **LOCAL-FIRST ARCHITECTURE** ✅
 2. **Push Notifications** (NotificationService/FCM) - Architecture in place, FCM integration pending
 
-### 1. In-App Notification Banner Flow
+### 1. In-App Notification Banner Flow (LOCAL-FIRST)
+
+**🔒 SECURITY NOTE:** As of October 24, 2025, this has been migrated from an **insecure `collectionGroup("messages")` listener** to a **secure LocalDatabase observer** that aligns with the local-first architecture.
 
 ```mermaid
 sequenceDiagram
-    participant FS as Firestore
+    participant SE as SyncEngine
+    participant LDB as LocalDatabase
     participant NBM as NotificationBannerManager
     participant NM as NotificationManager
     participant UI as NotificationBannerView
     participant CV as ConversationListView
 
-    Note over FS,CV: App Lifecycle: startListening() called on app launch
+    Note over SE,CV: App Lifecycle: startListening() called on app launch
     
-    NBM->>FS: collectionGroup("messages").addSnapshotListener()
-    Note over NBM: Initial load - skips existing messages
+    SE->>LDB: Firestore listeners → write to LocalDatabase
+    LDB->>NBM: NotificationCenter.post(.localDatabaseDidChange)
+    NBM->>NBM: Debounce (200ms)
     
-    FS->>NBM: DocumentChange.added (new message)
+    NBM->>LDB: Query recent messages (last 5 minutes)
+    LDB->>NBM: Return [LocalMessage]
     NBM->>NBM: Filter: skip own messages
     NBM->>NBM: Filter: skip current conversation
+    NBM->>NBM: Filter: skip already processed
     NBM->>NBM: Create BannerData from Message
     
     alt No banner showing
@@ -107,10 +113,13 @@ sequenceDiagram
 
 **Key Components:**
 
-**NotificationBannerManager** (`@MainActor`, `ObservableObject`)
+**NotificationBannerManager** (`@MainActor`, `ObservableObject`) - **NEW LOCAL-FIRST IMPLEMENTATION** ✅
 - **Purpose:** Manages in-app notification banners for messages received while app is active
-- **Lifecycle:** Initialized in `NexusAIApp`, starts listening after Firebase initialization
-- **Firestore Listener:** `collectionGroup("messages")` - listens to ALL messages across all conversations
+- **Lifecycle:** Initialized in `NexusAIApp`, starts observing LocalDatabase after initialization
+- **Data Source:** 🔒 **LocalDatabase observer** (was: insecure Firestore `collectionGroup()`)
+  - Observes `NotificationCenter.localDatabaseDidChange` events
+  - Queries recent messages from LocalDatabase (last 5 minutes)
+  - **Security:** Only accesses data already synced by SyncEngine (respects Firestore security rules)
 - **Published Properties:**
   - `currentBanner: BannerData?` - Currently displayed banner
   - `bannerQueue: [BannerData]` - Queue of pending banners (max 3)
@@ -118,11 +127,13 @@ sequenceDiagram
   - Skip initial load (avoid banners for existing messages)
   - Skip own messages (`message.senderId != currentUserId`)
   - Skip messages in currently open conversation (`message.conversationId != currentConversationId`)
+  - Skip already processed messages (tracks in-memory set)
 - **Banner Display:**
   - Auto-dismiss after 4 seconds
   - Queue management: FIFO, max 3 pending
   - Tap to navigate: Coordinates with NotificationManager
 - **Conversation Tracking:** `setCurrentConversation(id:)` updates filter to suppress banners
+- **Performance:** Debounced (200ms) to avoid excessive queries
 
 **NotificationManager** (`@MainActor`, `ObservableObject`)
 - **Purpose:** Coordinates notification navigation and permissions
@@ -1044,10 +1055,94 @@ class ChatViewModel {
 
 ---
 
+## Security Architecture
+
+### 🔒 Firestore Security Rules (Updated: October 24, 2025)
+
+**Critical Security Fix:** Replaced development-mode "allow all" rules with production-grade security.
+
+#### Key Security Principles:
+
+1. **Participant-Based Access Control**
+   - Users can ONLY access conversations they're participants in
+   - Enforced at Firestore level (not just client-side)
+   - Uses `participantIds` array for authorization
+
+2. **Sender Authentication**
+   - Users can ONLY send messages as themselves
+   - `request.auth.uid` must match `senderId`
+   - Prevents impersonation attacks
+
+3. **Message Privacy**
+   - Messages protected by conversation access rules
+   - Requires reading parent conversation to verify access
+   - Uses `get()` to fetch conversation document for validation
+
+#### Security Rules Example:
+
+```javascript
+// Messages can only be read by conversation participants
+match /conversations/{conversationId}/messages/{messageId} {
+  allow read: if request.auth.uid in 
+    get(/databases/$(database)/documents/conversations/$(conversationId))
+      .data.participantIds;
+  
+  allow create: if request.auth.uid in 
+    get(/databases/$(database)/documents/conversations/$(conversationId))
+      .data.participantIds &&
+    request.auth.uid == request.resource.data.senderId;
+}
+```
+
+### 🚫 Security Anti-Patterns (FIXED)
+
+**Before (INSECURE):**
+```swift
+// ❌ BAD: Listens to ALL messages (no filtering)
+db.collectionGroup("messages").addSnapshotListener { ... }
+```
+- Downloaded all messages from all conversations
+- Client-side filtering only (easily bypassed)
+- Privacy violation - users could see others' messages
+- Expensive - unnecessary Firestore reads
+
+**After (SECURE):**
+```swift
+// ✅ GOOD: Per-conversation listeners
+db.collection("conversations/{id}/messages").addSnapshotListener { ... }
+```
+- Only listens to conversations user is authorized to access
+- Protected by Firestore security rules
+- Efficient - only relevant data downloaded
+- Privacy-compliant
+
+### Data Access Flow (Secure)
+
+```
+User attempts to read message
+    ↓
+Firestore Security Rules check:
+    1. Is user authenticated? (request.auth != null)
+    2. Is user in conversation? (auth.uid in participantIds)
+    ↓
+If YES → Allow access
+If NO  → Permission denied error
+    ↓
+SyncEngine receives authorized data
+    ↓
+Writes to LocalDatabase
+    ↓
+ViewModels read from LocalDatabase
+```
+
+**Key Insight:** Security enforced at Firestore level, not client-side!
+
+---
+
 ## Summary
 
 ### Notification System
-- **In-App Banners:** Global `collectionGroup()` listener → filter → queue → display → navigate
+- **In-App Banners:** 🔒 **LocalDatabase observer** (secure, efficient, aligns with local-first)
 - **Push Notifications:** Architecture ready, FCM integration pending
 
 ### Message System
