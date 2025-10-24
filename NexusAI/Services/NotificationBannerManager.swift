@@ -12,7 +12,7 @@ import FirebaseAuth
 import FirebaseFirestore
 
 /// Service for managing in-app notification banners
-/// Listens to new messages and displays banners for messages in other conversations
+/// Listens to LocalDatabase changes and displays banners for new messages in other conversations
 @MainActor
 class NotificationBannerManager: ObservableObject {
     
@@ -37,93 +37,112 @@ class NotificationBannerManager: ObservableObject {
     /// Weak reference to NotificationManager for navigation coordination
     weak var notificationManager: NotificationManager?
     
-    /// Firestore database reference (use shared instance to avoid settings conflict)
-    private var db: Firestore {
-        FirebaseService.shared.db
-    }
+    /// Local database for observing message changes
+    private let database: LocalDatabase
     
-    /// Listener registration for managing the Firestore listener lifecycle
-    private var messageListener: ListenerRegistration?
+    /// Combine cancellables for observation
+    private var cancellables = Set<AnyCancellable>()
+    
+    /// Track processed message IDs to avoid duplicate banners
+    private var processedMessageIds = Set<String>()
     
     /// Track if this is the first snapshot (skip showing banners for existing messages)
     private var isInitialLoad = true
     
     // MARK: - Initialization
     
-    /// Initialize with optional NotificationManager reference
-    /// - Parameter notificationManager: The notification manager for handling navigation
-    init(notificationManager: NotificationManager? = nil) {
+    /// Initialize with optional NotificationManager reference and database
+    /// - Parameters:
+    ///   - notificationManager: The notification manager for handling navigation
+    ///   - database: The local database instance
+    init(
+        notificationManager: NotificationManager? = nil,
+        database: LocalDatabase? = nil
+    ) {
         self.notificationManager = notificationManager
-        print("ℹ️ NotificationBannerManager: Initialized")
+        self.database = database ?? LocalDatabase.shared
+        print("ℹ️ NotificationBannerManager: Initialized (local-first architecture)")
     }
     
-    /// Start listening for messages - should be called after app is fully initialized
+    /// Start listening for messages - observes LocalDatabase changes
     func startListening() {
         print("🎬 NotificationBannerManager: startListening() called")
-        
-        guard messageListener == nil else {
-            print("⚠️ NotificationBannerManager: Listener already started")
-            return
-        }
-        
-        print("🔄 NotificationBannerManager: About to call listenForMessages()")
-        listenForMessages()
-        print("✅ NotificationBannerManager: listenForMessages() completed")
+        print("🔄 NotificationBannerManager: Setting up LocalDatabase observer")
+        observeLocalDatabaseChanges()
+        print("✅ NotificationBannerManager: LocalDatabase observer started")
     }
     
-    /// Clean up listener when deinitializing
+    /// Clean up observers when deinitializing
     deinit {
-        messageListener?.remove()
-        print("🧹 NotificationBannerManager: Listener removed")
+        cancellables.removeAll()
+        print("🧹 NotificationBannerManager: Observers removed")
     }
     
-    // MARK: - Firestore Listener Methods
+    // MARK: - LocalDatabase Observer Methods
     
-    /// Start listening for new messages across all conversations
-    func listenForMessages() {
-        print("👂 NotificationBannerManager: Starting Firestore listener for messages")
+    /// Observe LocalDatabase changes for new messages
+    private func observeLocalDatabaseChanges() {
+        print("👂 NotificationBannerManager: Observing LocalDatabase for new messages")
         
-        // Use collectionGroup to listen across all conversations
-        // Note: Removed ordering to avoid requiring a composite index
-        messageListener = db.collectionGroup("messages")
-            .addSnapshotListener { [weak self] snapshot, error in
+        // Observe database change notifications
+        NotificationCenter.default
+            .publisher(for: .localDatabaseDidChange)
+            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
                 guard let self = self else { return }
-                
-                // Handle errors
-                if let error = error {
-                    print("❌ NotificationBannerManager: Listener error - \(error.localizedDescription)")
-                    return
-                }
-                
-                // Process document changes
-                guard let snapshot = snapshot else {
-                    print("⚠️ NotificationBannerManager: No snapshot received")
-                    return
-                }
-                
-                // Skip initial load to avoid showing banners for existing messages
-                if self.isInitialLoad {
-                    print("ℹ️ NotificationBannerManager: Initial load - skipping \(snapshot.documents.count) existing messages")
-                    self.isInitialLoad = false
-                    return
-                }
-                
-                // Only process newly added messages
-                print("📬 NotificationBannerManager: Received \(snapshot.documentChanges.count) document changes")
-                for change in snapshot.documentChanges where change.type == .added {
-                    do {
-                        let message = try change.document.data(as: Message.self)
-                        print("📨 NotificationBannerManager: New message detected from \(message.senderName)")
-                        Task { @MainActor in
-                            self.handleNewMessage(message)
-                        }
-                    } catch {
-                        print("⚠️ NotificationBannerManager: Failed to parse message - \(error.localizedDescription)")
-                    }
+                Task { @MainActor in
+                    await self.checkForNewMessages()
                 }
             }
+            .store(in: &cancellables)
         
-        print("✅ NotificationBannerManager: Listener started successfully")
+        // Perform initial check after a short delay
+        Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+            self.isInitialLoad = false
+            print("✅ NotificationBannerManager: Initial load complete, now monitoring for new messages")
+        }
+    }
+    
+    /// Check for new messages in LocalDatabase
+    private func checkForNewMessages() async {
+        // Skip if still in initial load
+        guard !isInitialLoad else { return }
+        
+        do {
+            // Query for recent messages (last 5 minutes)
+            let fiveMinutesAgo = Date().addingTimeInterval(-5 * 60)
+            
+            let predicate = #Predicate<LocalMessage> { message in
+                message.timestamp > fiveMinutesAgo
+            }
+            
+            let recentMessages = try database.fetch(LocalMessage.self, where: predicate)
+            
+            // Process messages that haven't been processed yet
+            for localMessage in recentMessages {
+                let messageId = localMessage.id
+                
+                // Skip if already processed
+                guard !processedMessageIds.contains(messageId) else {
+                    continue
+                }
+                
+                // Convert to Message and handle
+                let message = localMessage.toMessage()
+                handleNewMessage(message)
+                processedMessageIds.insert(messageId)
+            }
+            
+            // Clean up old processed IDs (keep last 100)
+            if processedMessageIds.count > 100 {
+                let oldestToRemove = processedMessageIds.count - 100
+                processedMessageIds = Set(processedMessageIds.dropFirst(oldestToRemove))
+            }
+            
+        } catch {
+            print("⚠️ NotificationBannerManager: Error querying messages - \(error.localizedDescription)")
+        }
     }
     
     /// Handle a new message and determine if a banner should be shown
