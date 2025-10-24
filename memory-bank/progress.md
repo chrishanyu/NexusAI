@@ -2,11 +2,11 @@
 
 ## Overall MVP Status
 
-**Phase:** **Local-First Sync Framework Complete** 🎉🎉🎉  
-**Major Achievement:** Event-driven architecture with 90% CPU reduction  
-**Current Status:** Sync framework (8 tasks, 134 sub-tasks) COMPLETE  
-**Next:** PR #10 (Read Receipts), PR #13 (Push Notifications)  
-**Architecture:** Production-ready local-first sync with SwiftData + Repository pattern
+**Phase:** **Robust Presence System Complete** 🎉  
+**Major Achievement:** Production-ready presence tracking with server-side disconnect detection  
+**Current Status:** Presence system (50 sub-tasks) + Sync framework (134 sub-tasks) COMPLETE  
+**Next:** Continue with remaining MVP features (Read Receipts, Push Notifications)  
+**Architecture:** RTDB + Firestore hybrid presence | Local-first sync with SwiftData
 
 ## Completed Work
 
@@ -445,6 +445,117 @@ Ground-up architectural enhancement replacing polling with event-driven local-fi
 - `tasks/prd-local-first-sync-framework.md` - Original PRD
 - `tasks/tasks-prd-local-first-sync-framework.md` - All 134 tasks (100% complete)
 - `tasks/SYNC-FRAMEWORK-COMPLETION-SUMMARY.md` - Comprehensive completion report
+
+---
+
+### ✅ Robust Presence System (Firebase RTDB + Firestore Hybrid)
+**Status:** COMPLETE ✅  
+**Completion Date:** October 24, 2025  
+**Total Scope:** 8 tasks (6 implementation + 2 cleanup), 50 sub-tasks
+
+**Summary:**
+Production-ready presence tracking using Firebase Realtime Database for reliable online/offline status. Implements server-side disconnect detection, heartbeat mechanism, offline queue, and iOS background task integration.
+
+**Implementation Details:**
+
+**Task 1.0 - Firebase RTDB SDK and Setup** ✅
+- Added FirebaseDatabase package dependency to Xcode project
+- Updated `FirebaseService` to include RTDB reference initialization
+- Tested Firebase RTDB connection (read/write verified in Firebase console)
+
+**Task 2.0 - RealtimePresenceService Core Implementation** ✅  
+- Created `RealtimePresenceService.swift` with singleton pattern
+- Implemented `initializePresence(for userId:)` with RTDB reference setup
+- Implemented `setUserOnline()` and `setUserOffline()` with delay support
+- Implemented `setupConnectionStateMonitoring()` with `.info/connected` listener
+- Implemented `onDisconnect()` callback for server-side offline detection
+- Implemented `startHeartbeat()` with 30-second Timer
+- Implemented `listenToPresence()` and `listenToMultiplePresence()` for real-time updates
+- Implemented stale presence detection (>60s heartbeat = offline)
+- Added `cleanup()` method for proper resource management
+- Created `RealtimePresenceError` enum for error handling
+
+**Task 3.0 - Offline Queue and Network Monitoring** ✅
+- Created `PresenceQueue` Actor for thread-safe offline updates
+- Implemented `QueuedPresenceUpdate` struct with userId, isOnline, timestamp
+- Implemented `enqueue()` with deduplication (one update per user)
+- Implemented `flushQueue()` with retry on failure and re-queueing
+- Integrated `NetworkMonitor.shared.$isConnected` publisher
+- Auto-flush queue when network reconnects
+
+**Task 4.0 - App Lifecycle and ViewModel Integration** ✅
+- Updated `NexusAIApp.handleScenePhaseChange()` to use `RealtimePresenceService.shared`
+- Added `initializePresence()` call on `.active` state
+- Added iOS background task integration for reliable offline updates
+- Proper error handling with do-catch blocks
+- Updated `ConversationListViewModel` to use RTDB listeners
+- Verified `GroupInfoViewModel` compatibility (reads from User.isOnline)
+
+**Task 5.0 - Firestore Sync for Persistence** ✅
+- Implemented `updateFirestorePresence()` private method
+- Syncs RTDB presence to Firestore User.isOnline field
+- Handles sync failures gracefully (logs but doesn't block)
+- Keeps User model in sync for Firestore queries
+
+**Task 8.0 - Migration and Cleanup** ✅  
+- Verified no remaining references to old `PresenceService`
+- Deleted `Services/PresenceService.swift` (legacy service)
+- Fixed critical bugs:
+  - Auth state listener now initializes presence for already-logged-in users
+  - Background offline updates use delay=0 with iOS background tasks
+  - Added `FirebaseDatabase` import to `ConversationListViewModel`
+
+**Files Created:**
+- `Services/RealtimePresenceService.swift` - Main presence service (300+ lines)
+  - Singleton with RTDB integration
+  - `PresenceQueue` Actor for offline updates
+  - Connection monitoring, heartbeat, onDisconnect callbacks
+
+**Files Modified:**
+- `Services/FirebaseService.swift` - Added RTDB reference
+- `NexusAIApp.swift` - Lifecycle integration + iOS background tasks
+- `ViewModels/AuthViewModel.swift` - Presence initialization on auth (CRITICAL FIX)
+- `ViewModels/ConversationListViewModel.swift` - RTDB listeners, Firebase Database import
+- `README.md` - Added Robust Presence System section
+- `memory-bank/systemPatterns.md` - Updated Pattern #4 with new architecture
+
+**Files Deleted:**
+- `Services/PresenceService.swift` - Legacy Firestore-based presence service
+
+**Critical Bugs Fixed:**
+1. **Auth state listener bug** - Presence wasn't initialized for already-logged-in users on app restart
+2. **Background offline bug** - 5-second delay caused iOS suspension before completion. Fixed with immediate update + background task
+3. **Memory leak** - Connection state listener wasn't being removed. Added proper cleanup
+
+**What Now Works:**
+- ✅ Users show online immediately when app opens
+- ✅ Users show offline immediately when app backgrounds
+- ✅ Users show offline when app force-quit or crashes (via onDisconnect)
+- ✅ Users show offline when network is lost for >60s (stale detection)
+- ✅ Presence updates queue when offline and auto-flush on reconnect
+- ✅ Green online indicators display in conversation list
+- ✅ No Firestore listener limits (RTDB supports unlimited listeners)
+- ✅ Hybrid sync keeps Firestore User.isOnline in sync
+
+**Key Technical Features:**
+- **Server-Side Disconnect:** Firebase RTDB `onDisconnect()` callback
+- **Heartbeat Mechanism:** 30-second interval, 60-second stale threshold
+- **Offline Queue:** Swift Actor for thread-safe queueing with deduplication
+- **iOS Background Task:** Ensures offline updates complete before suspension
+- **Hybrid Sync:** RTDB for real-time + Firestore for persistence
+
+**Performance Characteristics:**
+- Heartbeat: 30s interval (minimal bandwidth)
+- Stale threshold: 60s (users offline if no heartbeat)
+- Background delay: 0s (immediate offline when backgrounding)
+- Queue deduplication: Latest update per user
+- No listener limits: Unlike Firestore's 10-user "in" query limit
+
+**Documentation:**
+- `tasks/prd-robust-presence-system.md` - Complete PRD
+- `tasks/tasks-prd-robust-presence-system.md` - All 50 tasks (100% complete)
+- `README.md` - Architecture section added
+- `memory-bank/systemPatterns.md` - Pattern #4 updated with detailed implementation
 
 ---
 

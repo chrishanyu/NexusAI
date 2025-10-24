@@ -281,42 +281,237 @@ func flushQueue() async {
 }
 ```
 
-### 4. Presence Management Pattern
-**Purpose:** Track online/offline status, typing indicators
+### 4. Robust Presence Management Pattern (RTDB + Firestore Hybrid)
+**Purpose:** Reliable online/offline status tracking with server-side disconnect detection
+
+**Architecture:**
+```
+RTDB (presence/{userId})     Firestore (users/{userId})
+├── isOnline: Bool           └── isOnline: Bool (synced)
+├── lastSeen: Timestamp      
+├── lastHeartbeat: Timestamp
+└── onDisconnect() callback
+```
+
+**Key Features:**
+- Server-side disconnect detection via `onDisconnect()`
+- Heartbeat mechanism (30s interval) to detect stale connections
+- Offline queue with automatic retry using Swift Actor
+- iOS background task integration for reliable offline updates
+- Stale presence detection (>60s = offline)
 
 **Flow:**
 ```
-1. App enters foreground → Set isOnline: true
-2. App enters background → Wait 5s → Set isOnline: false
-3. Update lastSeen timestamp
-4. Chat screen listens to participant presence
-5. Display online indicator in UI
+1. Login/Auth → initializePresence(for: userId)
+   ├── Set up RTDB reference: presence/{userId}
+   ├── Register onDisconnect() callback (server-side)
+   ├── Start 30s heartbeat timer
+   └── Set user online
+
+2. Heartbeat (every 30s)
+   └── Update lastHeartbeat timestamp in RTDB
+
+3. App backgrounds → setUserOffline(delay: 0)
+   ├── iOS background task ensures completion
+   ├── Write offline to RTDB immediately
+   └── Sync to Firestore
+
+4. App force-quit/crash
+   └── onDisconnect() automatically sets offline (server-side!)
+
+5. Network disconnects
+   ├── Queue presence updates in PresenceQueue (Actor)
+   ├── NetworkMonitor detects reconnection
+   └── Auto-flush queue when online
+
+6. Listen to presence
+   ├── RTDB listener for real-time updates
+   ├── Check heartbeat staleness (>60s = offline)
+   └── Update UI with online/offline status
 ```
 
 **Implementation:**
 ```swift
-// In PresenceManager
-func updatePresence(_ isOnline: Bool) {
-    guard let userId = Auth.auth().currentUser?.uid else { return }
+// Singleton service
+class RealtimePresenceService {
+    static let shared = RealtimePresenceService()
     
-    Task {
-        try await db.collection("users").document(userId).updateData([
-            "isOnline": isOnline,
-            "lastSeen": FieldValue.serverTimestamp()
-        ])
+    private let rtdb: DatabaseReference
+    private let firestore: Firestore
+    private var heartbeatTimer: Timer?
+    private var presenceRef: DatabaseReference?
+    private let presenceQueue = PresenceQueue() // Actor
+    
+    // Initialize on login
+    func initializePresence(for userId: String) {
+        presenceRef = rtdb.child("presence").child(userId)
+        setupConnectionStateMonitoring(userId: userId) // onDisconnect setup
+        startHeartbeat(userId: userId)
+    }
+    
+    // Set user online
+    func setUserOnline(userId: String) async throws {
+        let data: [String: Any] = [
+            "isOnline": true,
+            "lastSeen": ServerValue.timestamp(),
+            "lastHeartbeat": ServerValue.timestamp()
+        ]
+        try await presenceRef?.setValue(data)
+        try await updateFirestorePresence(userId: userId, isOnline: true)
+    }
+    
+    // Set user offline (immediate for background)
+    func setUserOffline(userId: String, delay: TimeInterval = 0) async throws {
+        if delay > 0 {
+            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+        
+        let data: [String: Any] = [
+            "isOnline": false,
+            "lastSeen": ServerValue.timestamp(),
+            "lastHeartbeat": ServerValue.timestamp()
+        ]
+        try await presenceRef?.setValue(data)
+        try await updateFirestorePresence(userId: userId, isOnline: false)
+    }
+    
+    // Listen to presence with stale detection
+    func listenToPresence(userId: String, 
+                         onChange: @escaping (Bool, Date?) -> Void) -> DatabaseHandle {
+        let ref = rtdb.child("presence").child(userId)
+        return ref.observe(.value) { snapshot in
+            guard let data = snapshot.value as? [String: Any],
+                  let isOnline = data["isOnline"] as? Bool else {
+                onChange(false, nil)
+                return
+            }
+            
+            // Check for stale presence (>60s since last heartbeat)
+            if let heartbeat = data["lastHeartbeat"] as? TimeInterval {
+                let heartbeatDate = Date(timeIntervalSince1970: heartbeat / 1000)
+                let isStale = Date().timeIntervalSince(heartbeatDate) > 60
+                
+                if isStale && isOnline {
+                    onChange(false, nil) // Stale = offline
+                    return
+                }
+            }
+            
+            let lastSeen = (data["lastSeen"] as? TimeInterval).map { 
+                Date(timeIntervalSince1970: $0 / 1000) 
+            }
+            onChange(isOnline, lastSeen)
+        }
+    }
+    
+    // Connection monitoring + onDisconnect setup
+    private func setupConnectionStateMonitoring(userId: String) {
+        let connectedRef = Database.database().reference(withPath: ".info/connected")
+        connectedRef.observe(.value) { [weak self] snapshot in
+            guard let connected = snapshot.value as? Bool, connected,
+                  let presenceRef = self?.presenceRef else { return }
+            
+            // Register server-side onDisconnect callback
+            let disconnectData: [String: Any] = [
+                "isOnline": false,
+                "lastSeen": ServerValue.timestamp(),
+                "lastHeartbeat": ServerValue.timestamp()
+            ]
+            presenceRef.onDisconnectSetValue(disconnectData)
+            
+            // Set online now that we're connected
+            Task {
+                try? await self?.setUserOnline(userId: userId)
+            }
+        }
+    }
+    
+    // Heartbeat to keep presence fresh
+    private func startHeartbeat(userId: String) {
+        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) {
+            [weak self] _ in
+            guard let presenceRef = self?.presenceRef else { return }
+            presenceRef.child("lastHeartbeat").setValue(ServerValue.timestamp())
+        }
+        heartbeatTimer?.fire()
     }
 }
 
-// In App Delegate / Scene Delegate
-.onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-    PresenceManager.shared.updatePresence(true)
+// Thread-safe offline queue using Actor
+actor PresenceQueue {
+    private struct QueuedUpdate {
+        let userId: String
+        let isOnline: Bool
+        let timestamp: Date
+    }
+    
+    private var queue: [String: QueuedUpdate] = [:] // Deduplicate by userId
+    
+    func enqueue(userId: String, isOnline: Bool) {
+        queue[userId] = QueuedUpdate(userId: userId, isOnline: isOnline, timestamp: Date())
+    }
+    
+    func flushQueue(using service: RealtimePresenceService) async {
+        guard !queue.isEmpty else { return }
+        let updates = queue.values.sorted { $0.timestamp < $1.timestamp }
+        queue.removeAll()
+        
+        for update in updates {
+            do {
+                if update.isOnline {
+                    try await service.setUserOnline(userId: update.userId)
+                } else {
+                    try await service.setUserOffline(userId: update.userId, delay: 0)
+                }
+            } catch {
+                queue[update.userId] = update // Re-queue if failed
+            }
+        }
+    }
 }
-.onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
-    DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-        PresenceManager.shared.updatePresence(false)
+
+// App lifecycle integration
+// In NexusAIApp.swift
+.onChange(of: scenePhase) { oldPhase, newPhase in
+    guard let userId = authViewModel.currentUser?.id else { return }
+    
+    Task {
+        let presenceService = RealtimePresenceService.shared
+        
+        switch newPhase {
+        case .active:
+            presenceService.initializePresence(for: userId)
+            try await presenceService.setUserOnline(userId: userId)
+            
+        case .background:
+            // iOS background task ensures completion
+            var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+            backgroundTaskID = UIApplication.shared.beginBackgroundTask {
+                UIApplication.shared.endBackgroundTask(backgroundTaskID)
+            }
+            
+            try await presenceService.setUserOffline(userId: userId, delay: 0)
+            
+            UIApplication.shared.endBackgroundTask(backgroundTaskID)
+            
+        case .inactive:
+            break // Don't change presence
+        }
     }
 }
 ```
+
+**Why RTDB over Firestore for Presence:**
+1. **onDisconnect()** - Server-side callbacks not available in Firestore
+2. **Lower latency** - RTDB optimized for real-time updates
+3. **No listener limits** - Firestore has 10-user "in" query limit
+4. **Connection monitoring** - `.info/connected` node in RTDB
+5. **Heartbeat efficiency** - Simple timestamp updates every 30s
+
+**Trade-offs:**
+- More complex (two databases instead of one)
+- Additional Firebase SDK dependency
+- Requires careful sync between RTDB and Firestore
 
 ### 5. Singleton Services Pattern
 **Purpose:** Global state management, avoid duplication
