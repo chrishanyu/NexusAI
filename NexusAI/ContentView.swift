@@ -16,8 +16,8 @@ struct ContentView: View {
     
     var body: some View {
         ZStack {
-            // Main content
-            ConversationListView()
+            // Main content with tab navigation
+            MainTabView()
                 .environmentObject(authViewModel)
                 .environmentObject(notificationManager)
                 .environmentObject(bannerManager)

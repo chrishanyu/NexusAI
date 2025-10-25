@@ -147,3 +147,16 @@ extension Color {
         )
     }
 }
+
+// MARK: - Notification Name Extensions
+extension Notification.Name {
+    /// Notification to scroll Chat tab to top or pop navigation if in child view
+    static let scrollToTopChatTab = Notification.Name("scrollToTopChatTab")
+    
+    /// Notification to scroll Profile tab to top
+    static let scrollToTopProfileTab = Notification.Name("scrollToTopProfileTab")
+    
+    /// Keyboard notifications
+    static let keyboardWillShow = UIResponder.keyboardWillShowNotification
+    static let keyboardWillHide = UIResponder.keyboardWillHideNotification
+}
