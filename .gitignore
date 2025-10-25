@@ -34,3 +34,5 @@ build/
 # Node modules (for Cloud Functions)
 firebase/functions/node_modules/
 
+# API Keys and Secrets
+Config.plist

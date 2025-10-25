@@ -16,6 +16,7 @@ struct ChatView: View {
     @State private var shouldAutoScroll = true
     @State private var scrollAnchorMessageId: String?
     @State private var showingGroupInfo = false
+    @State private var showingAIAssistant = false
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var conversationListViewModel: ConversationListViewModel
     @EnvironmentObject private var bannerManager: NotificationBannerManager
@@ -84,6 +85,24 @@ struct ChatView: View {
                     }
                 }
             }
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showingAIAssistant = true
+                } label: {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.purple, .blue],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                .accessibilityLabel("AI Assistant")
+                .accessibilityHint("Get AI help with this conversation")
+            }
         }
         .background(Color(.systemGroupedBackground))
         .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
@@ -118,6 +137,14 @@ struct ChatView: View {
             if let conversation = viewModel.conversation {
                 GroupInfoView(conversation: conversation)
             }
+        }
+        .sheet(isPresented: $showingAIAssistant) {
+            AIAssistantView(
+                isPresented: $showingAIAssistant,
+                conversationId: viewModel.conversationId,
+                conversation: viewModel.conversation,
+                messages: viewModel.allMessages
+            )
         }
     }
     
