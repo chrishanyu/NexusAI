@@ -43,6 +43,7 @@ struct ConversationListView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarVisibility(.visible, for: .tabBar)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Messages")
@@ -115,32 +116,47 @@ struct ConversationListView: View {
     
     /// List of conversations
     private var conversationList: some View {
-        List {
-            ForEach(viewModel.filteredConversations) { conversation in
-                NavigationLink(value: conversation.id ?? "") {
-                    ConversationRowView(
-                        conversation: conversation,
-                        currentUserId: currentUserId,
-                        unreadCount: viewModel.conversationUnreadCounts[conversation.id ?? ""] ?? 0,
-                        userPresenceMap: viewModel.userPresenceMap
-                    )
+        ScrollViewReader { proxy in
+            List {
+                ForEach(viewModel.filteredConversations) { conversation in
+                    NavigationLink(value: conversation.id ?? "") {
+                        ConversationRowView(
+                            conversation: conversation,
+                            currentUserId: currentUserId,
+                            unreadCount: viewModel.conversationUnreadCounts[conversation.id ?? ""] ?? 0,
+                            userPresenceMap: viewModel.userPresenceMap
+                        )
+                    }
+                    .listRowInsets(EdgeInsets(
+                        top: 0,
+                        leading: Constants.Dimensions.screenPadding,
+                        bottom: 0,
+                        trailing: Constants.Dimensions.screenPadding
+                    ))
                 }
-                .listRowInsets(EdgeInsets(
-                    top: 0,
-                    leading: Constants.Dimensions.screenPadding,
-                    bottom: 0,
-                    trailing: Constants.Dimensions.screenPadding
-                ))
             }
-        }
-        .listStyle(.plain)
-        .navigationDestination(for: String.self) { conversationId in
-            if !conversationId.isEmpty {
-                ChatView(conversationId: conversationId)
-                    .environmentObject(viewModel)
-            } else {
-                Text("Invalid conversation")
-                    .foregroundColor(.secondary)
+            .listStyle(.plain)
+            .navigationDestination(for: String.self) { conversationId in
+                if !conversationId.isEmpty {
+                    ChatView(conversationId: conversationId)
+                        .environmentObject(viewModel)
+                } else {
+                    Text("Invalid conversation")
+                        .foregroundColor(.secondary)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .scrollToTopChatTab)) { _ in
+                // If we're in a child view (navigationPath not empty), pop back
+                if !navigationPath.isEmpty {
+                    navigationPath.removeLast()
+                } else {
+                    // Otherwise, scroll to top
+                    withAnimation {
+                        if let firstId = viewModel.filteredConversations.first?.id {
+                            proxy.scrollTo(firstId, anchor: .top)
+                        }
+                    }
+                }
             }
         }
     }

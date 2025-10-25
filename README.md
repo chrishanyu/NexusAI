@@ -61,16 +61,56 @@ Nexus/
 
 ## Features (MVP)
 
+- [x] **User Profile & Tab Navigation**
 - [x] One-on-one chat
 - [x] Group chat
 - [x] Real-time message delivery
 - [x] Offline support with sync
-- [x] Read receipts
-- [x] Typing indicators
+- [x] Read receipts (basic)
+- [x] Typing indicators (placeholder)
 - [x] **Robust online/offline presence system**
-- [x] Push notifications
+- [ ] Push notifications (in progress)
 
 ## Architecture Highlights
+
+### User Profile & Tab Navigation
+
+The app uses a native iOS tab-based navigation structure with intelligent behavior patterns.
+
+**Key Features:**
+- **Tab-Based Navigation** - iOS-native `TabView` with Chat and Profile tabs
+- **Keyboard-Aware UI** - Tab bar automatically hides when keyboard appears for better typing experience
+- **Smart Tab Behavior** - Tapping active tab scrolls to top or navigates back to root
+- **Repository Integration** - ProfileViewModel uses UserRepository for local-first data access
+- **Lazy Initialization** - ProfileViewModel created after AuthViewModel available from environment
+- **Proper SwiftUI Observation** - Split view architecture for reactive @Published properties
+
+**Architecture:**
+```
+MainTabView (Tab Container)
+├── Chat Tab → ConversationListView → ChatView
+│   ├── Scroll-to-top on tap (at root)
+│   └── Navigate back on tap (in child view)
+│
+└── Profile Tab → ProfileView → ProfileContentView
+    ├── Displays user info from UserRepository
+    ├── Scroll-to-top on tap
+    └── Logout functionality
+```
+
+**Implementation:**
+- `MainTabView` - Tab container with keyboard monitoring and tab tap detection
+- `ProfileView` - Lazy ViewModel initialization with environment object access
+- `ProfileContentView` - Reactive content view with @ObservedObject for proper observation
+- `ProfileViewModel` - State management using UserRepository pattern
+- `NotificationCenter` - Communication channel for tab actions (scroll/pop)
+
+**UX Decisions:**
+- Tab bar stays visible everywhere (except during keyboard) for smooth transitions
+- Prioritizes transition smoothness over screen space maximization
+- Follows iOS standard behavior for tab re-tapping
+
+See `/tasks/prd-user-profile-bottom-navigation.md` for complete documentation.
 
 ### Robust Presence System
 

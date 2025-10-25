@@ -241,22 +241,26 @@ class AuthViewModel: ObservableObject {
     
     /// Load user profile from repository or Firestore
     private func loadUserProfile(userId: String) async {
+        print("🟢 AuthViewModel: loadUserProfile called for userId: \(userId)")
         do {
             let user: User?
             
             // Use repository if available, otherwise use auth service
             if let repository = userRepository {
                 // Repository mode: fetch from local database (synced from Firestore)
+                print("🟢 AuthViewModel: Using repository to load user")
                 user = try await repository.getUser(userId: userId)
-                print("✅ User profile loaded from repository: \(user?.displayName ?? "nil")")
+                print("✅ AuthViewModel: User profile loaded from repository: \(user?.displayName ?? "nil") / \(user?.email ?? "nil")")
             } else {
                 // Legacy mode: fetch directly from Firestore
+                print("🟢 AuthViewModel: Using auth service to load user (legacy mode)")
                 user = try await authService.getUserProfile(userId: userId)
-                print("✅ User profile loaded from Firestore: \(user?.displayName ?? "nil")")
+                print("✅ AuthViewModel: User profile loaded from Firestore: \(user?.displayName ?? "nil") / \(user?.email ?? "nil")")
             }
             
             // Update current user
             currentUser = user
+            print("✅ AuthViewModel: currentUser updated to: \(currentUser?.displayName ?? "nil")")
             
             // Initialize presence for the authenticated user
             if user != nil {
@@ -268,12 +272,16 @@ class AuthViewModel: ObservableObject {
                 } catch {
                     print("⚠️ Failed to set user online: \(error.localizedDescription)")
                 }
+            } else {
+                print("⚠️ AuthViewModel: User is nil after loading")
             }
             
         } catch {
-            print("⚠️ Failed to load user profile: \(error.localizedDescription)")
+            print("⚠️ AuthViewModel: Failed to load user profile: \(error.localizedDescription)")
+            print("⚠️ AuthViewModel: Error type: \(type(of: error))")
             // If we can't load the profile, sign out the user
             currentUser = nil
+            print("⚠️ AuthViewModel: currentUser set to nil due to error")
         }
     }
     

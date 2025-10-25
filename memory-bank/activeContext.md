@@ -3,10 +3,10 @@
 ## Current Focus
 
 **Sprint:** MVP Foundation + Architecture Enhancement  
-**Phase:** **Robust Presence System COMPLETE** 🎉  
-**Status:** ✅ All implementation tasks complete - Production-ready presence tracking!  
-**Recent Completion:** ✅ Firebase RTDB-based presence system with offline handling  
-**Major Achievement:** Reliable online/offline status with server-side disconnect detection  
+**Phase:** **User Profile & Bottom Navigation COMPLETE** 🎉  
+**Status:** ✅ All implementation tasks complete - Production-ready tab navigation!  
+**Recent Completion:** ✅ Tab-based navigation with Profile screen and repository integration  
+**Major Achievement:** Complete UI/UX navigation structure with smooth transitions  
 **Next:** Continue with remaining MVP features (Read Receipts, Push Notifications, etc.)
 
 ## What We're Building Right Now
@@ -46,9 +46,50 @@
    - `ContentView.swift` - Temporary authenticated home screen with user info and sign out button
    - `AuthServiceTests.swift` - Unit tests for AuthService using MockAuthService
 
-**Build Status:** ✅ All features compile successfully, group chat fully implemented
+**Build Status:** ✅ All features compile successfully, user profile & navigation fully implemented
 
-## Just Completed (Major Milestone! 🎉)
+## Just Completed (Production-Ready Navigation! 🎉)
+
+### ✅ User Profile & Bottom Navigation
+**Status:** COMPLETE  
+**Completion Date:** October 25, 2025
+
+**Implemented Features:**
+1. **Tab Navigation** - iOS-native bottom tab bar with Chat and Profile tabs
+2. **Profile Screen** - User profile display with photo, name, email, and logout
+3. **Repository Integration** - ProfileViewModel using UserRepository for data access
+4. **Advanced Tab Behavior** - Tap to navigate back, scroll to top, keyboard awareness
+5. **UX Polish** - Smooth transitions, proper SwiftUI observation, no data display bugs
+
+**Files Created:**
+- `Views/Main/MainTabView.swift` - Tab bar container with keyboard handling
+- `Views/Profile/ProfileView.swift` - Profile screen with lazy ViewModel initialization
+- `Views/Profile/ProfileContentView.swift` - Content view with @ObservedObject
+- `ViewModels/ProfileViewModel.swift` - Profile state management with repository
+
+**Files Modified:**
+- `ContentView.swift` - Shows MainTabView instead of ConversationListView
+- `Views/ConversationList/ConversationListView.swift` - Added navigation pop and scroll-to-top
+- `Utilities/Constants.swift` - Added notification names for scroll-to-top and keyboard
+
+**Critical Bugs Fixed:**
+1. **"Unknown User" bug** - Fixed by splitting ProfileView into separate views with proper @ObservedObject
+2. **Task not executing** - Added explicit @MainActor context to ProfileViewModel Task
+3. **Tab bar delay** - Chose to keep tab bar visible everywhere for smooth transitions
+
+**What Now Works:**
+- ✅ Bottom tab navigation (Chat and Profile tabs)
+- ✅ Profile screen shows correct user data
+- ✅ Logout functionality with proper cleanup
+- ✅ Tab state persists across app launches
+- ✅ Tab bar hides when keyboard appears
+- ✅ Tapping tab while in child view navigates back
+- ✅ Tapping tab at root scrolls to top
+- ✅ Smooth navigation transitions
+
+---
+
+## Previous Completion (Major Milestone! 🎉)
 
 ### ✅ PR #12: Group Chat Functionality
 **Status:** COMPLETE  
@@ -238,71 +279,29 @@ This is a ground-up architectural enhancement that replaces polling-based data a
 
 ## Next Immediate Steps
 
-### Task 10: Integration Testing & Polish
-**Priority:** HIGH - Quality gate before moving to advanced features
+### Ready for Next Feature
+**Status:** No active work  
+**Available for:** Read Receipts, Push Notifications, or other MVP features
 
-**Testing Needed:**
-1. **Conversation List Testing** (10.1)
-   - Verify conversations load and display
-   - Test search/filter functionality
-   - Test pull-to-refresh
-   - Test navigation to chat
-   - Verify empty state
-   - Test new conversation creation
+**Suggested Next Steps:**
+1. **PR #10: Read Receipts (Full Implementation)**
+   - Priority: HIGH - MVP requirement
+   - Implement full read receipt tracking
+   - Update message status to "read" when viewed
+   - Display read status in conversation list and chat
 
-2. **Message Sending Testing** (10.2)
-   - Single message send
-   - Rapid messages (20+)
-   - Offline queueing (airplane mode)
-   - Auto-flush on reconnection
-   - Retry failed messages
-   - No duplicate messages
+2. **PR #13: Push Notifications (Simulator)**
+   - Priority: HIGH - MVP requirement
+   - Implement FCM integration
+   - Create notification service
+   - Test with .apns files in simulator
+   - Handle notification taps
 
-3. **Real-Time Sync Testing** (10.3)
-   - Two simulator instances
-   - Message delivery < 1 second
-   - Delivered status updates
-   - Bidirectional messaging
-
-4. **Pagination Testing** (10.4)
-   - Load 100+ messages
-   - Pull-to-refresh at top
-   - Scroll position maintained
-   - "No more messages" indicator
-
-5. **App Lifecycle Testing** (10.5)
-   - Background/foreground scenarios
-   - Force quit and reopen
-   - State restoration
-
-6. **Edge Cases & Error Handling** (10.6)
-   - Long messages (500+ chars)
-   - Special characters and emojis
-   - Offline user scenarios
-   - Network interruptions
-
-7. **UI Polish** (10.7)
-   - Smooth animations
-   - Dark mode appearance
-   - VoiceOver accessibility
-   - Dynamic type scaling
-
-8. **Performance Optimization** (10.8)
-   - Message list scrolling (200+ messages)
-   - Memory leak checks
-   - Firestore read/write optimization
-
-9. **Documentation Updates** (10.9)
-   - Update progress.md
-   - Document known issues
-   - Update README
-
-**Success Criteria:**
-- All manual testing scenarios pass
-- No critical bugs or crashes
-- Performance meets benchmarks
-- Memory leaks resolved
-- Documentation current
+3. **Integration Testing & Polish**
+   - Priority: MEDIUM - Quality gate
+   - Test all features together
+   - Fix bugs discovered during testing
+   - Polish UI/UX based on feedback
 
 ## Recent Decisions
 
@@ -329,6 +328,32 @@ This is a ground-up architectural enhancement that replaces polling-based data a
    - Reason: Enables unit testing with mock services
    - Impact: Services implement protocols, ViewModels inject protocol dependencies
    - Implementation: AuthServiceProtocol + MockAuthService for testing
+
+### User Profile & Navigation Decisions (NEW)
+1. **Tab Bar Always Visible (Except During Keyboard)**
+   - Reason: SwiftUI tab bar transitions are smoother when not hidden/shown per view
+   - Impact: Tab bar visible in ChatView but hidden when keyboard appears
+   - Trade-off: Less screen space in chat but smoother UX (like Telegram)
+
+2. **Lazy ViewModel Initialization in ProfileView**
+   - Reason: Need AuthViewModel from environment before creating ProfileViewModel
+   - Impact: ProfileViewModel created in onAppear, not as @StateObject
+   - Solution: Split into ProfileView (creates VM) + ProfileContentView (observes VM with @ObservedObject)
+
+3. **@ObservedObject Instead of @State for ViewModel**
+   - Reason: @State doesn't observe @Published properties in observed objects
+   - Impact: Had to use @ObservedObject in separate ContentView to get reactivity
+   - Critical Fix: Prevents "Unknown User" bug
+
+4. **Scroll-to-Top via NotificationCenter**
+   - Reason: Tab taps in MainTabView need to trigger scroll in child views
+   - Impact: NotificationCenter as communication channel between MainTabView and content views
+   - Implementation: Custom notification names in Constants.swift
+
+5. **Navigation Pop When Chat Tab Tapped in ChatView**
+   - Reason: Users expect tapping active tab to navigate back (iOS standard)
+   - Impact: MainTabView detects re-tap, posts notification, ConversationListView pops navigation
+   - UX Benefit: Quick way to return to conversation list
 
 ### Technical Decisions (PR #3)
 1. **Swift Concurrency (async/await) Over Completion Handlers**
@@ -577,8 +602,8 @@ All dependencies available:
 - `memory-bank/techContext.md` - Technical stack and decisions
 
 ### Current State Summary
-**Phase:** Core messaging implementation complete, testing phase  
-**Completed:** Authentication, conversation list, chat UI, message sending, real-time sync, offline support, pagination  
-**Next:** Comprehensive testing, bug fixes, then group chat and notifications  
-**Goal:** Complete MVP by end of sprint - 44% of PRs done, ahead of schedule
+**Phase:** All core UI/UX patterns complete, ready for advanced features  
+**Completed:** Authentication, navigation, profile, conversation list, chat UI, message sending, real-time sync, offline support, pagination, group chat, presence  
+**Next:** Read receipts and push notifications  
+**Goal:** Complete MVP by end of sprint - ahead of schedule with all core infrastructure done
 
