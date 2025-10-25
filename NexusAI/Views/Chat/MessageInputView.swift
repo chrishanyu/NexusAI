@@ -19,15 +19,15 @@ struct MessageInputView: View {
     // MARK: - Body
     
     var body: some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .center, spacing: 12) {
             // Text input field
             textInputField
             
             // Send button
             sendButton
         }
-        .padding(.horizontal, Constants.Dimensions.screenPadding)
-        .padding(.vertical, 8)
+        .padding(.horizontal)
+        .padding(.vertical, 12)
         .background(Color(.systemBackground))
         .overlay(
             Rectangle()
@@ -41,50 +41,25 @@ struct MessageInputView: View {
     
     /// Text input field with expanding behavior
     private var textInputField: some View {
-        ZStack(alignment: .leading) {
-            // Background
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color(.secondarySystemBackground))
-            
-            // Text Editor
-            TextEditor(text: $messageText)
-                .focused($isFocused)
-                .frame(maxHeight: maxTextHeight)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.clear)
-                .scrollContentBackground(.hidden)
-            
-            // Placeholder
-            if messageText.isEmpty {
-                Text("Message...")
-                    .foregroundColor(.secondary)
-                    .font(.body)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .allowsHitTesting(false)
-            }
-        }
-        .frame(height: textFieldHeight)
+        TextField("Message...", text: $messageText, axis: .vertical)
+            .textFieldStyle(.plain)
+            .focused($isFocused)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(.systemGray6))
+            .cornerRadius(20)
+            .lineLimit(1...4)
     }
     
     /// Send button
     private var sendButton: some View {
         Button(action: handleSend) {
-            ZStack {
-                Circle()
-                    .fill(sendButtonColor)
-                    .frame(
-                        width: Constants.Dimensions.sendButtonSize,
-                        height: Constants.Dimensions.sendButtonSize
-                    )
-                
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-            }
+            Image(systemName: "arrow.up.circle.fill")
+                .font(.system(size: 32))
+                .foregroundStyle(sendButtonColor)
         }
         .disabled(!canSend)
+        .opacity(canSend ? 1.0 : 0.5)
         .animation(.easeInOut(duration: 0.2), value: canSend)
     }
     
@@ -97,27 +72,7 @@ struct MessageInputView: View {
     
     /// Send button color based on state
     private var sendButtonColor: Color {
-        canSend ? Constants.Colors.primaryBlue : Color.gray.opacity(0.3)
-    }
-    
-    /// Maximum height for text input
-    private var maxTextHeight: CGFloat {
-        let lineHeight: CGFloat = 20
-        return lineHeight * CGFloat(Constants.Dimensions.messageInputMaxLines)
-    }
-    
-    /// Dynamic height for text field based on content
-    private var textFieldHeight: CGFloat {
-        let lineCount = messageText.components(separatedBy: "\n").count
-        let baseHeight: CGFloat = Constants.Dimensions.messageInputHeight
-        
-        if lineCount <= 1 {
-            return baseHeight
-        } else {
-            let lineHeight: CGFloat = 20
-            let additionalHeight = CGFloat(min(lineCount - 1, Constants.Dimensions.messageInputMaxLines - 1)) * lineHeight
-            return min(baseHeight + additionalHeight, maxTextHeight)
-        }
+        canSend ? Constants.Colors.primaryBlue : Color.gray
     }
     
     // MARK: - Methods
