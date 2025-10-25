@@ -12,12 +12,28 @@ struct AIAssistantView: View {
     // MARK: - Properties
     
     @Binding var isPresented: Bool
+    @StateObject private var viewModel: AIAssistantViewModel
     @State private var userInput: String = ""
-    @State private var messages: [AIMessage] = [
-        AIMessage(text: "Hi! I'm your AI assistant. I can help you with this conversation. Ask me anything about the messages, participants, or get suggestions!", isFromAI: true),
-        AIMessage(text: "What's this conversation about?", isFromAI: false),
-        AIMessage(text: "Based on the conversation, it appears you're discussing project updates and deadlines. Would you like me to summarize the key points or help you draft a response?", isFromAI: true)
-    ]
+    @State private var showClearConfirmation: Bool = false
+    @State private var scrollProxy: ScrollViewProxy? = nil
+    
+    // Conversation data for context
+    let conversation: Conversation?
+    let messages: [Message]
+    
+    // MARK: - Initialization
+    
+    init(
+        isPresented: Binding<Bool>,
+        conversationId: String,
+        conversation: Conversation?,
+        messages: [Message]
+    ) {
+        self._isPresented = isPresented
+        self._viewModel = StateObject(wrappedValue: AIAssistantViewModel(conversationId: conversationId))
+        self.conversation = conversation
+        self.messages = messages
+    }
     
     // MARK: - Body
     
@@ -25,26 +41,78 @@ struct AIAssistantView: View {
         NavigationView {
             VStack(spacing: 0) {
                 // AI Chat Messages
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Header with gradient
-                        headerView
-                        
-                        // Messages
-                        ForEach(messages) { message in
-                            AIMessageBubble(message: message)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            // Header with gradient
+                            headerView
+                            
+                            // Welcome message (only show if no messages)
+                            if !viewModel.hasMessages && !viewModel.isLoading {
+                                welcomeMessageView
+                            }
+                            
+                            // Suggested Prompts (only show if no messages)
+                            if !viewModel.hasMessages && !viewModel.isLoading {
+                                suggestedPromptsView
+                            }
+                            
+                            // Messages
+                            ForEach(viewModel.messages) { message in
+                                AIMessageBubbleView(message: message)
+                                    .id(message.id)
+                            }
+                            
+                            // Loading indicator
+                            if viewModel.isLoading {
+                                loadingView
+                            }
+                            
+                            // Invisible anchor for scroll
+                            Color.clear
+                                .frame(height: 1)
+                                .id("bottom")
+                        }
+                        .padding()
+                    }
+                    .onAppear {
+                        scrollToBottom(proxy: proxy)
+                    }
+                    .onChange(of: viewModel.messages.count) { _, _ in
+                        scrollToBottom(proxy: proxy, animated: true)
+                    }
+                    .onChange(of: viewModel.isLoading) { _, isLoading in
+                        if !isLoading {
+                            scrollToBottom(proxy: proxy, animated: true)
                         }
                     }
-                    .padding()
                 }
                 
                 Divider()
+                
+                // Error message
+                if let errorMessage = viewModel.errorMessage {
+                    errorBanner(message: errorMessage)
+                }
                 
                 // Input area
                 inputBar
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if viewModel.hasMessages {
+                        Button {
+                            showClearConfirmation = true
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.system(size: 16, weight: .regular))
+                                .foregroundColor(.secondary)
+                        }
+                        .accessibilityLabel("Start fresh conversation")
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         isPresented = false
@@ -55,6 +123,16 @@ struct AIAssistantView: View {
                     }
                     .accessibilityLabel("Close")
                 }
+            }
+            .alert("Clear Chat History", isPresented: $showClearConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Clear", role: .destructive) {
+                    Task {
+                        await viewModel.clearChatHistory()
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to clear all AI chat messages? This cannot be undone.")
             }
         }
     }
@@ -85,6 +163,135 @@ struct AIAssistantView: View {
         .padding(.vertical, 24)
     }
     
+    /// Welcome message
+    private var welcomeMessageView: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.purple, .blue],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                
+                Text("AI Assistant")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 4)
+            
+            Text("Hi! I'm your AI assistant. I can help you with this conversation. Ask me anything about the messages, participants, or get suggestions!")
+                .font(.body)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    LinearGradient(
+                        colors: [Color.purple.opacity(0.15), Color.blue.opacity(0.15)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .cornerRadius(16)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.purple.opacity(0.3), Color.blue.opacity(0.3)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 8)
+    }
+    
+    /// Suggested prompts section
+    private var suggestedPromptsView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Suggested")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+            
+            Button(action: handleSummarizeThread) {
+                HStack {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 16))
+                    Text("Summarize this thread")
+                        .font(.body)
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 14))
+                }
+                .padding()
+                .background(
+                    LinearGradient(
+                        colors: [Color.purple.opacity(0.15), Color.blue.opacity(0.15)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.purple.opacity(0.4), Color.blue.opacity(0.4)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 8)
+    }
+    
+    /// Loading indicator
+    private var loadingView: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+                .scaleEffect(0.9)
+            Text("Thinking...")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+    }
+    
+    /// Error banner
+    private func errorBanner(message: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.orange)
+            
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            Button {
+                viewModel.dismissError()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(Color.orange.opacity(0.1))
+    }
+    
     /// Input bar with text field and send button
     private var inputBar: some View {
         HStack(spacing: 12) {
@@ -95,6 +302,7 @@ struct AIAssistantView: View {
                 .background(Color(.systemGray6))
                 .cornerRadius(20)
                 .lineLimit(1...4)
+                .disabled(viewModel.isLoading)
             
             Button(action: handleSendMessage) {
                 Image(systemName: "arrow.up.circle.fill")
@@ -107,8 +315,8 @@ struct AIAssistantView: View {
                         )
                     )
             }
-            .disabled(userInput.isEmpty)
-            .opacity(userInput.isEmpty ? 0.5 : 1.0)
+            .disabled(userInput.isEmpty || viewModel.isLoading)
+            .opacity((userInput.isEmpty || viewModel.isLoading) ? 0.5 : 1.0)
         }
         .padding(.horizontal)
         .padding(.vertical, 12)
@@ -119,37 +327,47 @@ struct AIAssistantView: View {
     
     /// Handle sending a message
     private func handleSendMessage() {
-        guard !userInput.isEmpty else { return }
+        guard !userInput.isEmpty, !viewModel.isLoading else { return }
         
-        let newMessage = AIMessage(text: userInput, isFromAI: false)
-        messages.append(newMessage)
+        let messageText = userInput
         userInput = ""
         
-        // Simulate AI response
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            let aiResponse = AIMessage(
-                text: "I'm analyzing the conversation... (This is a mockup - AI functionality will be implemented soon!)",
-                isFromAI: true
-            )
-            messages.append(aiResponse)
+        Task {
+            if let conversation = conversation {
+                await viewModel.sendMessage(
+                    text: messageText,
+                    conversation: conversation,
+                    messages: messages
+                )
+            } else {
+                await viewModel.sendMessage(text: messageText)
+            }
         }
     }
-}
-
-// MARK: - AI Message Models
-
-/// Model for AI chat messages
-struct AIMessage: Identifiable {
-    let id = UUID()
-    let text: String
-    let isFromAI: Bool
+    
+    /// Handle summarize thread button
+    private func handleSummarizeThread() {
+        userInput = "Summarize this thread"
+        handleSendMessage()
+    }
+    
+    /// Scroll to bottom of message list
+    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = false) {
+        if animated {
+            withAnimation(.easeOut(duration: 0.3)) {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        } else {
+            proxy.scrollTo("bottom", anchor: .bottom)
+        }
+    }
 }
 
 // MARK: - AI Message Bubble
 
 /// Message bubble for AI chat
-struct AIMessageBubble: View {
-    let message: AIMessage
+struct AIMessageBubbleView: View {
+    let message: LocalAIMessage
     
     var body: some View {
         HStack {
@@ -217,11 +435,5 @@ struct AIMessageBubble: View {
             }
         }
     }
-}
-
-// MARK: - Preview
-
-#Preview("AI Assistant") {
-    AIAssistantView(isPresented: .constant(true))
 }
 

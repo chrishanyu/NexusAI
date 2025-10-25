@@ -33,6 +33,10 @@ final class RepositoryFactory {
         UserRepository(database: database)
     }()
     
+    private lazy var _aiMessageRepository: AIMessageRepository = {
+        AIMessageRepository(database: database)
+    }()
+    
     // MARK: - Initialization
     
     private init() {
@@ -61,6 +65,11 @@ final class RepositoryFactory {
     /// Get the user repository instance
     var userRepository: UserRepositoryProtocol {
         _userRepository
+    }
+    
+    /// Get the AI message repository instance
+    var aiMessageRepository: AIMessageRepository {
+        _aiMessageRepository
     }
     
     /// Reset all repositories (useful for testing or logout)

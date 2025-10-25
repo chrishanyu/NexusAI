@@ -139,7 +139,12 @@ struct ChatView: View {
             }
         }
         .sheet(isPresented: $showingAIAssistant) {
-            AIAssistantView(isPresented: $showingAIAssistant)
+            AIAssistantView(
+                isPresented: $showingAIAssistant,
+                conversationId: viewModel.conversationId,
+                conversation: viewModel.conversation,
+                messages: viewModel.allMessages
+            )
         }
     }
     

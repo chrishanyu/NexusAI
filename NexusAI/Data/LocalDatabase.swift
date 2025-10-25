@@ -48,7 +48,9 @@ class LocalDatabase {
         let schema = Schema([
             LocalMessage.self,
             LocalConversation.self,
-            LocalUser.self
+            LocalUser.self,
+            LocalAIMessage.self,
+            LocalAIConversation.self
         ])
         
         // Create model configuration
@@ -79,7 +81,9 @@ class LocalDatabase {
         let schema = Schema([
             LocalMessage.self,
             LocalConversation.self,
-            LocalUser.self
+            LocalUser.self,
+            LocalAIMessage.self,
+            LocalAIConversation.self
         ])
         let configuration = ModelConfiguration(
             schema: schema,

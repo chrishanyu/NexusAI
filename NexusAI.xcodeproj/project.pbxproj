@@ -13,6 +13,7 @@
 		7E5A43FC2EA702EA00EAFFB4 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 7E5A43FB2EA702EA00EAFFB4 /* GoogleSignIn */; };
 		7E5A43FE2EA702EA00EAFFB4 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 7E5A43FD2EA702EA00EAFFB4 /* GoogleSignInSwift */; };
 		7E88C6612EAC1FA90071AFA5 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 7E88C6602EAC1FA90071AFA5 /* FirebaseDatabase */; };
+		7E88C89C2EAC73900071AFA5 /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 7E88C89B2EAC73900071AFA5 /* OpenAI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,6 +73,7 @@
 				7E5A43FE2EA702EA00EAFFB4 /* GoogleSignInSwift in Frameworks */,
 				7E5A43EA2EA6EADD00EAFFB4 /* FirebaseMessaging in Frameworks */,
 				7E5A43FC2EA702EA00EAFFB4 /* GoogleSignIn in Frameworks */,
+				7E88C89C2EAC73900071AFA5 /* OpenAI in Frameworks */,
 				7E5A43E62EA6EACE00EAFFB4 /* FirebaseAuth in Frameworks */,
 				7E5A43E82EA6EAD600EAFFB4 /* FirebaseFirestore in Frameworks */,
 			);
@@ -155,6 +157,7 @@
 				7E5A43FB2EA702EA00EAFFB4 /* GoogleSignIn */,
 				7E5A43FD2EA702EA00EAFFB4 /* GoogleSignInSwift */,
 				7E88C6602EAC1FA90071AFA5 /* FirebaseDatabase */,
+				7E88C89B2EAC73900071AFA5 /* OpenAI */,
 			);
 			productName = NexusAI;
 			productReference = 7E5A43CD2EA6DD3500EAFFB4 /* NexusAI.app */;
@@ -191,6 +194,7 @@
 			packageReferences = (
 				7E5A43E42EA6EAAB00EAFFB4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				7E5A43FA2EA702EA00EAFFB4 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				7E88C89A2EAC73890071AFA5 /* XCRemoteSwiftPackageReference "OpenAI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7E5A43CE2EA6DD3500EAFFB4 /* Products */;
@@ -548,6 +552,14 @@
 				minimumVersion = 9.0.0;
 			};
 		};
+		7E88C89A2EAC73890071AFA5 /* XCRemoteSwiftPackageReference "OpenAI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/MacPaw/OpenAI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -580,6 +592,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7E5A43E42EA6EAAB00EAFFB4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseDatabase;
+		};
+		7E88C89B2EAC73900071AFA5 /* OpenAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7E88C89A2EAC73890071AFA5 /* XCRemoteSwiftPackageReference "OpenAI" */;
+			productName = OpenAI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
