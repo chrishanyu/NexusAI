@@ -9,6 +9,7 @@ import Foundation
 import Combine
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseDatabase
 
 /// ViewModel for managing the chat screen
 @MainActor
@@ -39,6 +40,12 @@ class ChatViewModel: ObservableObject {
     
     /// Pagination: Last loaded message for cursor-based pagination
     @Published var lastLoadedMessage: Message?
+    
+    /// Presence: Whether the other user is online (for 1v1 chats)
+    @Published var isOtherUserOnline: Bool = false
+    
+    /// Presence: Last seen timestamp for the other user (for 1v1 chats)
+    @Published var otherUserLastSeen: Date?
     
     // MARK: - Private Properties
     
@@ -82,6 +89,15 @@ class ChatViewModel: ObservableObject {
     
     /// Firestore listener registration (legacy)
     private var messageListener: ListenerRegistration?
+    
+    /// Presence listener handle for RTDB (nonisolated for cleanup in deinit)
+    nonisolated(unsafe) private var presenceListenerHandle: DatabaseHandle?
+    
+    /// Other user ID for presence tracking (nonisolated for cleanup in deinit)
+    nonisolated(unsafe) private var otherUserIdForPresence: String?
+    
+    /// Presence service
+    private let presenceService = RealtimePresenceService.shared
     
     // MARK: - Shared Dependencies
     
@@ -153,6 +169,7 @@ class ChatViewModel: ObservableObject {
         repositoryListenerTask = nil
         errorDismissTimer?.invalidate()
         errorDismissTimer = nil
+        cleanupPresenceListener()
     }
     
     // MARK: - Public Methods
@@ -167,6 +184,7 @@ class ChatViewModel: ObservableObject {
         errorDismissTimer = nil
         markAsReadTask?.cancel()
         markAsReadTask = nil
+        cleanupPresenceListener()
         print("✅ Chat listeners cleaned up")
     }
     
@@ -692,6 +710,8 @@ class ChatViewModel: ObservableObject {
                 await MainActor.run {
                     if let conversation = conversation {
                         self.conversation = conversation
+                        // Start listening to presence for 1v1 chats
+                        self.startListeningToPresence()
                     } else {
                         self.setErrorMessage("Conversation not found")
                     }
@@ -704,6 +724,56 @@ class ChatViewModel: ObservableObject {
                 }
             }
         }
+    }
+    
+    // MARK: - Presence Tracking
+    
+    /// Start listening to the other user's presence status (for 1v1 chats only)
+    private func startListeningToPresence() {
+        // Only track presence for 1v1 conversations
+        guard let conversation = conversation, conversation.type == .direct else {
+            return
+        }
+        
+        // Get the other user's ID
+        guard let otherUserId = conversation.participantIds.first(where: { $0 != currentUserId }) else {
+            print("⚠️ Could not find other user in conversation")
+            return
+        }
+        
+        // Clean up any existing listener
+        cleanupPresenceListener()
+        
+        // Cache the other user ID for cleanup
+        otherUserIdForPresence = otherUserId
+        
+        // Start listening to presence
+        presenceListenerHandle = presenceService.listenToPresence(userId: otherUserId) { [weak self] isOnline, lastSeen in
+            Task { @MainActor in
+                self?.isOtherUserOnline = isOnline
+                self?.otherUserLastSeen = lastSeen
+                print("👤 Presence updated for other user: \(isOnline ? "online" : "offline")")
+            }
+        }
+        
+        print("✅ Started listening to presence for user: \(otherUserId)")
+    }
+    
+    /// Clean up the presence listener
+    nonisolated private func cleanupPresenceListener() {
+        guard let handle = presenceListenerHandle,
+              let otherUserId = otherUserIdForPresence else {
+            return
+        }
+        
+        // Remove observer from Firebase RTDB
+        Database.database().reference().child("presence").child(otherUserId).removeObserver(withHandle: handle)
+        
+        // Clear the stored values
+        presenceListenerHandle = nil
+        otherUserIdForPresence = nil
+        
+        print("✅ Presence listener cleaned up")
     }
     
     // MARK: - Error Handling

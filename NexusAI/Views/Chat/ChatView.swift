@@ -15,6 +15,8 @@ struct ChatView: View {
     @StateObject private var viewModel: ChatViewModel
     @State private var shouldAutoScroll = true
     @State private var scrollAnchorMessageId: String?
+    @State private var scrollPosition: String? // For iOS 26+ scroll control
+    @State private var isInitialLoad = true // Prevent scroll on initial message load
     @State private var showingGroupInfo = false
     @State private var showingAIAssistant = false
     @Environment(\.scenePhase) private var scenePhase
@@ -198,9 +200,11 @@ struct ChatView: View {
                             .frame(height: 1)
                             .id("bottom")
                     }
+                    .scrollTargetLayout() // iOS 26: Enable precise scroll positioning
                     .padding(.vertical, 8)
                 }
             }
+            .scrollPosition(id: $scrollPosition, anchor: .bottom) // iOS 26: Modern scroll control
             .refreshable {
                 // Save current scroll anchor (first visible message) before loading
                 await MainActor.run {
@@ -221,8 +225,12 @@ struct ChatView: View {
                 }
             }
             .onAppear {
-                // Scroll to bottom when view appears
-                scrollToBottom(proxy: proxy)
+                // Set initial scroll position to bottom (iOS 26)
+                if let lastMessage = viewModel.allMessages.last {
+                    scrollPosition = lastMessage.id ?? lastMessage.localId
+                } else {
+                    scrollPosition = "bottom"
+                }
                 
                 // Mark messages as read when chat opens
                 viewModel.markVisibleMessagesAsRead()
@@ -231,19 +239,35 @@ struct ChatView: View {
                 conversationListViewModel.updateUnreadCount(for: viewModel.conversationId, count: 0)
             }
             .onChange(of: viewModel.allMessages.count) { oldCount, newCount in
-                // Only auto-scroll on new messages (not initial load)
+                // Skip initial load to prevent unwanted scroll animation
+                if isInitialLoad {
+                    isInitialLoad = false
+                    // Set scroll position without animation
+                    if let lastMessage = viewModel.allMessages.last {
+                        scrollPosition = lastMessage.id ?? lastMessage.localId
+                    }
+                    return
+                }
+                
+                // Only auto-scroll on new messages (after initial load)
                 guard newCount > oldCount else { return }
                 
                 // Always scroll if it's the user's own message
                 if let lastMessage = viewModel.allMessages.last,
                    lastMessage.senderId == viewModel.currentUserId {
                     scrollToBottom(proxy: proxy, animated: true)
+                    // Also update scrollPosition for iOS 26
+                    scrollPosition = lastMessage.id ?? lastMessage.localId
                     return
                 }
                 
                 // Otherwise, only scroll if user is already at bottom
                 if shouldAutoScroll {
                     scrollToBottom(proxy: proxy, animated: true)
+                    // Also update scrollPosition for iOS 26
+                    if let lastMessage = viewModel.allMessages.last {
+                        scrollPosition = lastMessage.id ?? lastMessage.localId
+                    }
                 }
             }
         }
@@ -328,16 +352,25 @@ struct ChatView: View {
             let participantCount = conversation.participantIds.count
             return "\(participantCount) participants"
         } else {
-            // For direct chats, show online status
-            // This will be enhanced with actual presence tracking in PR #11
-            return "Tap to view info"
+            // For direct chats, show online/offline status
+            if viewModel.isOtherUserOnline {
+                return "Online"
+            } else if let lastSeen = viewModel.otherUserLastSeen {
+                return "Last seen \(lastSeen.smartTimestamp())"
+            } else {
+                return "Offline"
+            }
         }
     }
     
     /// Subtitle color
     private var subtitleColor: Color {
-        // Will be enhanced with actual online status in PR #11
-        return .secondary
+        if isGroupConversation {
+            return .secondary
+        } else {
+            // For direct chats, green if online, secondary if offline
+            return viewModel.isOtherUserOnline ? .green : .secondary
+        }
     }
     
     /// Whether this is a group conversation

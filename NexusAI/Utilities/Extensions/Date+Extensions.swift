@@ -3,46 +3,44 @@ import Foundation
 extension Date {
 
     /// Returns a smart formatted timestamp for messages
-    /// Examples: "Just now", "5m", "2h", "Yesterday", "Mon", "12/24"
+    /// Examples: "3:45 PM" (today), "Yesterday 3:45 PM", "Mon 3:45 PM", "Dec 24 3:45 PM"
     func smartTimestamp() -> String {
         let calendar = Calendar.current
         let now = Date()
-        let timeInterval = -self.timeIntervalSince(now)
-
-        // Less than 1 minute ago
-        if timeInterval < 60 {
-            return "Just now"
+        let timeFormatter = DateFormatter()
+        timeFormatter.timeStyle = .short
+        let time = timeFormatter.string(from: self)
+        
+        // Today - show time only
+        if calendar.isDateInToday(self) {
+            return time // "3:45 PM"
         }
-
-        // Less than 1 hour ago (show minutes)
-        if timeInterval < 3600 {
-            let minutes = Int(timeInterval / 60)
-            return "\(minutes)m"
-        }
-
-        // Less than 24 hours ago (show hours)
-        if timeInterval < 86400 {
-            let hours = Int(timeInterval / 3600)
-            return "\(hours)h"
-        }
-
+        
         // Yesterday
         if calendar.isDateInYesterday(self) {
-            return "Yesterday"
+            return "Yesterday \(time)"
         }
-
-        // Within the last 7 days (show abbreviated weekday)
-        let components = calendar.dateComponents([.day], from: self, to: now)
+        
+        // Within the last 7 days (show abbreviated day name)
+        let components = calendar.dateComponents([.day], from: calendar.startOfDay(for: self), 
+                                                 to: calendar.startOfDay(for: now))
         if let days = components.day, days < 7 {
             let formatter = DateFormatter()
             formatter.dateFormat = "EEE" // Abbreviated day name: "Mon", "Tue", etc.
-            return formatter.string(from: self)
+            return "\(formatter.string(from: self)) \(time)"
         }
-
-        // Older messages (show MM/DD format)
+        
+        // This year - show month and day
+        if calendar.component(.year, from: self) == calendar.component(.year, from: now) {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM d" // "Dec 24"
+            return "\(formatter.string(from: self)) \(time)"
+        }
+        
+        // Older than this year - show month, day, and year
         let formatter = DateFormatter()
-        formatter.dateFormat = "M/d" // "12/24"
-        return formatter.string(from: self)
+        formatter.dateFormat = "MMM d, yyyy" // "Dec 24, 2023"
+        return "\(formatter.string(from: self)) \(time)"
     }
 
     /// Returns a full timestamp for message details

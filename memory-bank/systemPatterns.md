@@ -26,18 +26,38 @@ NexusAI follows a clean **MVVM (Model-View-ViewModel)** architecture with a serv
 - Delegate user actions to ViewModels
 - No direct Firebase/service calls
 
+**iOS 26 Specific Patterns:**
+- Use `.scrollPosition(id:anchor:)` instead of `.defaultScrollAnchor()` for better scroll control
+- Apply `.scrollTargetLayout()` to enable precise scroll positioning with LazyVStack
+- Track initial load states to prevent unwanted scroll animations on view appearance
+- Leverage modern SwiftUI scroll APIs introduced in iOS 26
+
 **Example:**
 ```swift
 struct ChatView: View {
     @StateObject private var viewModel: ChatViewModel
+    @State private var scrollPosition: String?
+    @State private var isInitialLoad = true
     
     var body: some View {
-        VStack {
-            MessageListView(messages: viewModel.messages)
-            MessageInputView(onSend: viewModel.sendMessage)
+        ScrollView {
+            LazyVStack {
+                ForEach(messages) { message in
+                    MessageView(message: message)
+                        .id(message.id)
+                }
+            }
+            .scrollTargetLayout()
         }
-        .onAppear { viewModel.startListening() }
-        .onDisappear { viewModel.stopListening() }
+        .scrollPosition(id: $scrollPosition, anchor: .bottom)
+        .onChange(of: messages.count) { oldCount, newCount in
+            if isInitialLoad {
+                isInitialLoad = false
+                scrollPosition = messages.last?.id
+                return
+            }
+            // Handle new messages
+        }
     }
 }
 ```
@@ -890,6 +910,58 @@ func startListening() {
 - Use Xcode UI Tests for critical flows
 - Test optimistic UI updates
 - Verify navigation and user actions
+
+## iOS 26 Platform Considerations
+
+### Apple's Versioning Change
+**Important:** Apple changed its iOS versioning strategy after iOS 18 to align with macOS and other operating systems. The versioning now matches the year of release:
+- **iOS 18** → Last version under old numbering system
+- **iOS 26** → Direct successor (released in 2026)
+- **Versions 19-25** were skipped to align with the year-based naming scheme
+
+This unified approach ensures version consistency across Apple's ecosystem (iOS, macOS, iPadOS, visionOS, etc.). All Apple operating systems now use matching version numbers.
+
+### SwiftUI Changes in iOS 26
+
+#### ScrollView API Evolution
+iOS 26 introduced significant improvements to `ScrollView` control:
+
+1. **Deprecated Patterns:**
+   - `.defaultScrollAnchor()` has behavioral inconsistencies
+   - May cause unwanted scroll animations on initial load
+   - Does not prevent programmatic scrolls from overriding default position
+
+2. **Recommended Patterns:**
+   - Use `.scrollPosition(id: Binding<ID?>, anchor: UnitPoint)` for explicit control
+   - Apply `.scrollTargetLayout()` to LazyVStack for precise positioning
+   - Bind scroll position to @State variable for reactive updates
+
+3. **Common Issues & Solutions:**
+   - **Problem:** View scrolls on entry even with anchor set
+   - **Solution:** Track `isInitialLoad` state and skip animations during first data load
+   - **Problem:** onChange fires during initial message population
+   - **Solution:** Guard against initial load in onChange handlers
+
+#### Best Practices for Chat Views
+```swift
+// Track initial load to prevent unwanted scrolling
+@State private var isInitialLoad = true
+
+.onChange(of: messages.count) { old, new in
+    if isInitialLoad {
+        isInitialLoad = false
+        scrollPosition = messages.last?.id
+        return // Skip animated scroll
+    }
+    // Normal scroll behavior for new messages
+}
+```
+
+### Backward Compatibility
+- App targets iOS 26.0+ for deployment
+- Minimum supported version is iOS 17.0+
+- Use `@available(iOS 26, *)` for iOS 26-specific APIs
+- Maintain fallback implementations for older iOS versions
 
 ## Future Architectural Considerations
 
