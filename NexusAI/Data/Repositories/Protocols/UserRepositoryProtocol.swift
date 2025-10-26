@@ -70,6 +70,17 @@ protocol UserRepositoryProtocol {
         profileImageUrl: String?
     ) async throws
     
+    /// Update user's cached avatar properties (color and initials)
+    /// - Parameters:
+    ///   - userId: The user ID
+    ///   - initials: Precomputed initials
+    ///   - colorHex: Avatar background color as hex string
+    func updateAvatarCache(
+        userId: String,
+        initials: String,
+        colorHex: String
+    ) async throws
+    
     /// Delete a user
     /// - Parameter userId: The user ID to delete
     func deleteUser(userId: String) async throws

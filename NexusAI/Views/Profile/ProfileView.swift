@@ -74,6 +74,7 @@ struct ProfileContentView: View {
             ProfileImageView(
                 imageUrl: viewModel.profileImageUrl,
                 displayName: viewModel.displayName,
+                avatarColorHex: viewModel.avatarColorHex,
                 size: 120
             )
             .accessibilityLabel("Profile picture")

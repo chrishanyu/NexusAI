@@ -32,6 +32,20 @@ final class LocalUser {
     /// URL to user's profile image
     var profileImageUrl: String?
     
+    // MARK: - Avatar Cache
+    
+    /// Stored avatar color for consistent display (hex string)
+    var avatarColorHex: String?
+    
+    /// Precomputed initials for faster display
+    var cachedInitials: String?
+    
+    /// Local file path to cached profile image
+    var cachedImagePath: String?
+    
+    /// Last time cached image was accessed (for LRU eviction)
+    var cachedImageLastAccess: Date?
+    
     // MARK: - Presence
     
     /// Whether user is currently online
@@ -82,6 +96,10 @@ final class LocalUser {
         email: String,
         displayName: String,
         profileImageUrl: String?,
+        avatarColorHex: String? = nil,
+        cachedInitials: String? = nil,
+        cachedImagePath: String? = nil,
+        cachedImageLastAccess: Date? = nil,
         isOnline: Bool,
         lastSeen: Date,
         syncStatus: SyncStatus = .synced,
@@ -96,6 +114,10 @@ final class LocalUser {
         self.email = email
         self.displayName = displayName
         self.profileImageUrl = profileImageUrl
+        self.avatarColorHex = avatarColorHex
+        self.cachedInitials = cachedInitials
+        self.cachedImagePath = cachedImagePath
+        self.cachedImageLastAccess = cachedImageLastAccess
         self.isOnline = isOnline
         self.lastSeen = lastSeen
         self.syncStatusRaw = syncStatus.rawValue
@@ -116,6 +138,7 @@ final class LocalUser {
             email: email,
             displayName: displayName,
             profileImageUrl: profileImageUrl,
+            avatarColorHex: avatarColorHex,
             isOnline: isOnline,
             lastSeen: lastSeen,
             createdAt: createdAt
@@ -130,6 +153,7 @@ final class LocalUser {
             email: user.email,
             displayName: user.displayName,
             profileImageUrl: user.profileImageUrl,
+            avatarColorHex: user.avatarColorHex,
             isOnline: user.isOnline,
             lastSeen: user.lastSeen,
             syncStatus: syncStatus,
@@ -147,6 +171,12 @@ final class LocalUser {
         self.email = user.email
         self.displayName = user.displayName
         self.profileImageUrl = user.profileImageUrl
+        
+        // Update avatar color if provided from server (cross-device sync)
+        if let serverColor = user.avatarColorHex, !serverColor.isEmpty {
+            self.avatarColorHex = serverColor
+        }
+        
         self.isOnline = user.isOnline
         self.lastSeen = user.lastSeen
         self.updatedAt = Date()

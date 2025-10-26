@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import SwiftUI
 
 /// Concrete implementation of UserRepositoryProtocol
 /// Currently reads/writes ONLY from LocalDatabase (no Firestore sync yet)
@@ -74,8 +75,22 @@ final class UserRepository: UserRepositoryProtocol {
             user.id == userId
         }
         
-        let localUser = try database.fetchOne(LocalUser.self, where: predicate)
-        return localUser?.toUser()
+        guard let localUser = try database.fetchOne(LocalUser.self, where: predicate) else {
+            return nil
+        }
+        
+        // Auto-generate and store avatar color if missing
+        if localUser.avatarColorHex == nil || localUser.avatarColorHex?.isEmpty == true {
+            let colorHex = Color.avatarColorHex(for: localUser.displayName)
+            localUser.avatarColorHex = colorHex
+            localUser.syncStatus = .pending
+            
+            try database.update(localUser)
+            try database.save()
+            database.notifyChanges()
+        }
+        
+        return localUser.toUser()
     }
     
     func getUsers(userIds: [String]) async throws -> [User] {
@@ -88,6 +103,25 @@ final class UserRepository: UserRepositoryProtocol {
         )
         
         let filteredUsers = allUsers.filter { userIds.contains($0.id) }
+        
+        // Auto-generate and store avatar colors for users missing them
+        var needsUpdate = false
+        for localUser in filteredUsers {
+            if localUser.avatarColorHex == nil || localUser.avatarColorHex?.isEmpty == true {
+                let colorHex = Color.avatarColorHex(for: localUser.displayName)
+                localUser.avatarColorHex = colorHex
+                localUser.syncStatus = .pending
+                needsUpdate = true
+                
+                try database.update(localUser)
+            }
+        }
+        
+        if needsUpdate {
+            try database.save()
+            database.notifyChanges()
+        }
+        
         return filteredUsers.map { $0.toUser() }
     }
     
@@ -183,6 +217,30 @@ final class UserRepository: UserRepositoryProtocol {
         if let profileImageUrl = profileImageUrl {
             localUser.profileImageUrl = profileImageUrl
         }
+        localUser.syncStatus = .pending
+        
+        try database.update(localUser)
+        try database.save()
+        
+        // Notify observers of changes
+        database.notifyChanges()
+    }
+    
+    func updateAvatarCache(
+        userId: String,
+        initials: String,
+        colorHex: String
+    ) async throws {
+        let predicate = #Predicate<LocalUser> { user in
+            user.id == userId
+        }
+        
+        guard let localUser = try database.fetchOne(LocalUser.self, where: predicate) else {
+            throw RepositoryError.notFound
+        }
+        
+        localUser.cachedInitials = initials
+        localUser.avatarColorHex = colorHex
         localUser.syncStatus = .pending
         
         try database.update(localUser)

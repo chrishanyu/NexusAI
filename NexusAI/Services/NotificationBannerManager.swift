@@ -162,10 +162,24 @@ class NotificationBannerManager: ObservableObject {
             return
         }
         
-        // Create banner data and show
-        let bannerData = BannerData(from: message)
-        print("✅ NotificationBannerManager: Creating banner for message")
-        showBanner(bannerData)
+        // Look up sender's User profile to get profile image URL
+        Task {
+            let userRepository = RepositoryFactory.shared.userRepository
+            let senderUser = try? await userRepository.getUser(userId: message.senderId)
+            
+            // Create banner data with profile image URL
+            let bannerData = BannerData(
+                conversationId: message.conversationId,
+                senderId: message.senderId,
+                senderName: message.senderName,
+                messageText: message.text,
+                profileImageUrl: senderUser?.profileImageUrl,
+                timestamp: message.timestamp
+            )
+            
+            print("✅ NotificationBannerManager: Creating banner for message\(senderUser?.profileImageUrl != nil ? " with profile image" : "")")
+            showBanner(bannerData)
+        }
     }
     
     // MARK: - Banner Display Methods

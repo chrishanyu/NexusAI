@@ -1341,7 +1341,7 @@ final class SyncEngine {
             print("📤 Syncing user: \(localUser.id)")
             
             // Create user data (only sync profile fields, not presence)
-            let userData: [String: Any] = [
+            var userData: [String: Any] = [
                 "googleId": localUser.googleId,
                 "email": localUser.email,
                 "displayName": localUser.displayName,
@@ -1349,6 +1349,11 @@ final class SyncEngine {
                 "createdAt": Timestamp(date: localUser.createdAt)
                 // Note: Do NOT sync isOnline/lastSeen - those are server-managed
             ]
+            
+            // Include avatar color if available (for cross-device consistency)
+            if let avatarColorHex = localUser.avatarColorHex, !avatarColorHex.isEmpty {
+                userData["avatarColorHex"] = avatarColorHex
+            }
             
             // Update Firestore
             let docRef = firebaseService.db
