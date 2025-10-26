@@ -49,6 +49,11 @@ class ProfileViewModel: ObservableObject {
         return url
     }
     
+    /// User's avatar color (hex string)
+    var avatarColorHex: String? {
+        return currentUser?.avatarColorHex
+    }
+    
     // MARK: - Dependencies
     
     private let userRepository: UserRepositoryProtocol

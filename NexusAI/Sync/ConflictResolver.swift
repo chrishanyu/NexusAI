@@ -129,6 +129,20 @@ final class ConflictResolver {
         // Always use remote presence data (isOnline, lastSeen) - server is source of truth
         let updatedLocal = LocalUser.from(remote, syncStatus: .synced)
         
+        // Preserve local avatar color if not set remotely (local-first for avatar metadata)
+        if local.avatarColorHex != nil && !local.avatarColorHex!.isEmpty {
+            if remote.avatarColorHex == nil || remote.avatarColorHex!.isEmpty {
+                // Local has color, remote doesn't - keep local
+                updatedLocal.avatarColorHex = local.avatarColorHex
+                updatedLocal.syncStatus = .pending // Sync color back to server
+            }
+        }
+        
+        // Preserve local cached image metadata (local-only, not synced)
+        updatedLocal.cachedImagePath = local.cachedImagePath
+        updatedLocal.cachedImageLastAccess = local.cachedImageLastAccess
+        updatedLocal.cachedInitials = local.cachedInitials
+        
         // For profile fields, use LWW
         if localTimestamp > remoteTimestamp {
             // Local profile is newer - keep local profile fields but use remote presence
@@ -137,7 +151,7 @@ final class ConflictResolver {
             updatedLocal.syncStatus = .pending // Need to sync profile back
             return .useLocal(updatedLocal)
         } else {
-            // Remote is newer or equal - use all remote data
+            // Remote is newer or equal - use all remote data (but avatar metadata already preserved above)
             return .useRemote(updatedLocal)
         }
     }

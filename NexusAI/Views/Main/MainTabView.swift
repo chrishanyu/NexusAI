@@ -14,8 +14,8 @@ struct MainTabView: View {
     // MARK: - Properties
     
     /// Selected tab index (0 = Chat, 1 = Profile)
-    /// Persisted using AppStorage for tab state across app launches
-    @AppStorage("selectedTab") private var selectedTab: Int = 0
+    /// Defaults to Chat tab on each app launch
+    @State private var selectedTab: Int = 0
     
     /// Track keyboard visibility to hide/show tab bar
     @State private var isKeyboardVisible: Bool = false

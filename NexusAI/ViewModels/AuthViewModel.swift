@@ -108,6 +108,12 @@ class AuthViewModel: ObservableObject {
             // Update current user on success
             currentUser = user
             
+            // Immediately save to local database if using repository mode
+            if let repository = userRepository {
+                print("💾 AuthViewModel: Saving user to local DB immediately after sign-in")
+                _ = try? await repository.saveUser(user)
+            }
+            
             // Initialize presence and set user online
             if let userId = user.id {
                 presenceService.initializePresence(for: userId)
@@ -243,14 +249,27 @@ class AuthViewModel: ObservableObject {
     private func loadUserProfile(userId: String) async {
         print("🟢 AuthViewModel: loadUserProfile called for userId: \(userId)")
         do {
-            let user: User?
+            var user: User?
             
             // Use repository if available, otherwise use auth service
             if let repository = userRepository {
                 // Repository mode: fetch from local database (synced from Firestore)
                 print("🟢 AuthViewModel: Using repository to load user")
                 user = try await repository.getUser(userId: userId)
-                print("✅ AuthViewModel: User profile loaded from repository: \(user?.displayName ?? "nil") / \(user?.email ?? "nil")")
+                
+                // Fallback: If not in local DB yet (first login or sync delay), fetch from Firestore
+                if user == nil {
+                    print("⚠️ AuthViewModel: User not in local DB, fetching from Firestore...")
+                    user = try await authService.getUserProfile(userId: userId)
+                    
+                    // Save to local database for future use
+                    if let user = user {
+                        print("✅ AuthViewModel: Saving user to local DB from Firestore fallback")
+                        _ = try? await repository.saveUser(user)
+                    }
+                }
+                
+                print("✅ AuthViewModel: User profile loaded: \(user?.displayName ?? "nil") / \(user?.email ?? "nil")")
             } else {
                 // Legacy mode: fetch directly from Firestore
                 print("🟢 AuthViewModel: Using auth service to load user (legacy mode)")

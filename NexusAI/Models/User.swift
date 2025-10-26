@@ -14,6 +14,7 @@ struct User: Codable, Identifiable {
     let email: String
     var displayName: String
     var profileImageUrl: String?
+    var avatarColorHex: String?  // Synced to Firestore for cross-device consistency
     var isOnline: Bool
     var lastSeen: Date
     let createdAt: Date
