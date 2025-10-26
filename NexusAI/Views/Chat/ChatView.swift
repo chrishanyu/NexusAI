@@ -19,6 +19,8 @@ struct ChatView: View {
     @State private var isInitialLoad = true // Prevent scroll on initial message load
     @State private var showingGroupInfo = false
     @State private var showingAIAssistant = false
+    @State private var showingActionItems = false
+    @StateObject private var actionItemViewModel: ActionItemViewModel
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var conversationListViewModel: ConversationListViewModel
     @EnvironmentObject private var bannerManager: NotificationBannerManager
@@ -26,11 +28,14 @@ struct ChatView: View {
     /// Initialize with conversation ID
     init(conversationId: String) {
         _viewModel = StateObject(wrappedValue: ChatViewModel(conversationId: conversationId))
+        _actionItemViewModel = StateObject(wrappedValue: ActionItemViewModel(conversationId: conversationId))
     }
     
     /// Initialize with conversation object
     init(conversation: Conversation) {
-        _viewModel = StateObject(wrappedValue: ChatViewModel(conversationId: conversation.id ?? ""))
+        let convId = conversation.id ?? ""
+        _viewModel = StateObject(wrappedValue: ChatViewModel(conversationId: convId))
+        _actionItemViewModel = StateObject(wrappedValue: ActionItemViewModel(conversationId: convId))
     }
     
     // MARK: - Body
@@ -89,21 +94,35 @@ struct ChatView: View {
             }
             
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    showingAIAssistant = true
-                } label: {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.purple, .blue],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                HStack(spacing: 16) {
+                    // Action Items button
+                    Button {
+                        showingActionItems = true
+                    } label: {
+                        Image(systemName: "checklist")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.primary)
+                    }
+                    .accessibilityLabel("Action Items")
+                    .accessibilityHint("View and manage action items")
+                    
+                    // AI Assistant button
+                    Button {
+                        showingAIAssistant = true
+                    } label: {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.purple, .blue],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                        )
+                    }
+                    .accessibilityLabel("AI Assistant")
+                    .accessibilityHint("Get AI help with this conversation")
                 }
-                .accessibilityLabel("AI Assistant")
-                .accessibilityHint("Get AI help with this conversation")
             }
         }
         .background(Color(.systemGroupedBackground))
@@ -147,6 +166,21 @@ struct ChatView: View {
                 conversation: viewModel.conversation,
                 messages: viewModel.allMessages
             )
+        }
+        .sheet(isPresented: $showingActionItems) {
+            ConversationActionItemsSheet(
+                viewModel: actionItemViewModel,
+                isPresented: $showingActionItems
+            )
+        }
+        .onChange(of: showingActionItems) { _, isShowing in
+            if isShowing {
+                // Set conversation data when sheet opens
+                actionItemViewModel.setConversationData(
+                    messages: viewModel.allMessages,
+                    conversation: viewModel.conversation
+                )
+            }
         }
     }
     
