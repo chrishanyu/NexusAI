@@ -50,7 +50,8 @@ class LocalDatabase {
             LocalConversation.self,
             LocalUser.self,
             LocalAIMessage.self,
-            LocalAIConversation.self
+            LocalAIConversation.self,
+            LocalActionItem.self
         ])
         
         // Create model configuration
@@ -83,7 +84,8 @@ class LocalDatabase {
             LocalConversation.self,
             LocalUser.self,
             LocalAIMessage.self,
-            LocalAIConversation.self
+            LocalAIConversation.self,
+            LocalActionItem.self
         ])
         let configuration = ModelConfiguration(
             schema: schema,

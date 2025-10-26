@@ -963,13 +963,226 @@ iOS 26 introduced significant improvements to `ScrollView` control:
 - Use `@available(iOS 26, *)` for iOS 26-specific APIs
 - Maintain fallback implementations for older iOS versions
 
+### 9. AI-Powered Feature Pattern (Action Items)
+**Purpose:** Extract structured data from conversations using GPT-4 with JSON parsing
+
+**Architecture:**
+```
+User triggers extraction
+    ↓
+ViewModel.extractItems()
+    ↓
+AIService.extractActionItems()
+    ├── Build prompt with conversation context
+    ├── Request structured JSON output
+    ├── Parse GPT-4 response
+    └── Return ActionItem array
+    ↓
+Repository.save(items)
+    ↓
+SwiftData persistence
+    ↓
+Observation stream updates UI
+```
+
+**Key Components:**
+
+**1. Structured Prompt Engineering:**
+```swift
+func buildExtractionPrompt(participantNames: String, messageContext: String) -> String {
+    """
+    Analyze this conversation and extract action items in STRICT JSON format.
+    
+    Participants: \(participantNames)
+    
+    Rules:
+    1. Output ONLY a JSON array (no markdown, no explanations)
+    2. Match assignee names EXACTLY from participant list
+    3. Parse deadlines to ISO8601 format
+    4. Determine priority from urgency keywords
+    
+    JSON Schema:
+    [
+      {
+        "task": "Clear description",
+        "assignee": "Exact participant name or null",
+        "deadline": "ISO8601 date or null",
+        "priority": "high" | "medium" | "low",
+        "messageId": "Source message ID"
+      }
+    ]
+    
+    Conversation:
+    \(messageContext)
+    """
+}
+```
+
+**2. JSON Parsing with Error Handling:**
+```swift
+struct ActionItemJSON: Codable {
+    let task: String
+    let assignee: String?
+    let deadline: String? // ISO8601
+    let priority: String
+    let messageId: String
+}
+
+func parseActionItems(from jsonString: String, conversationId: String) throws -> [ActionItem] {
+    // Strip markdown code blocks
+    let cleanedJSON = jsonString
+        .replacingOccurrences(of: "```json", with: "")
+        .replacingOccurrences(of: "```", with: "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    
+    // Parse JSON
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    
+    let jsonItems = try decoder.decode([ActionItemJSON].self, from: Data(cleanedJSON.utf8))
+    
+    // Convert to ActionItem models
+    return jsonItems.map { json in
+        ActionItem(
+            conversationId: conversationId,
+            task: json.task,
+            assignee: json.assignee,
+            deadline: parseDate(json.deadline),
+            priority: Priority(rawValue: json.priority) ?? .medium,
+            messageId: json.messageId
+        )
+    }
+}
+```
+
+**3. Repository Pattern with Manual Sorting:**
+```swift
+// SwiftData SortDescriptor doesn't work well with Bool and optional Date
+// Implement manual in-memory sorting instead
+func fetch(for conversationId: String) async throws -> [ActionItem] {
+    let descriptor = FetchDescriptor<LocalActionItem>(
+        predicate: #Predicate { $0.conversationId == conversationId }
+    )
+    let localItems = try database.context.fetch(descriptor)
+    
+    // Manual sorting: incomplete first, then by deadline, then by extractedAt
+    let items = localItems.map { $0.toActionItem() }
+    return items.sorted { lhs, rhs in
+        // Incomplete items first
+        if lhs.isComplete != rhs.isComplete {
+            return !lhs.isComplete
+        }
+        // Then by deadline (items with deadlines first)
+        if lhs.deadline != nil && rhs.deadline == nil { return true }
+        if lhs.deadline == nil && rhs.deadline != nil { return false }
+        if let lhsDeadline = lhs.deadline, let rhsDeadline = rhs.deadline {
+            return lhsDeadline < rhsDeadline
+        }
+        // Finally by extraction time
+        return lhs.extractedAt > rhs.extractedAt
+    }
+}
+```
+
+**4. Observation Pattern for Real-Time Updates:**
+```swift
+// Repository provides AsyncStream for real-time updates
+func observeActionItems(for conversationId: String) -> AsyncStream<[ActionItem]> {
+    AsyncStream { continuation in
+        let center = NotificationCenter.default
+        let observer = center.addObserver(
+            forName: LocalDatabase.dataDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task {
+                let items = try? await self?.fetch(for: conversationId)
+                continuation.yield(items ?? [])
+            }
+        }
+        
+        // Initial fetch
+        Task {
+            let items = try? await fetch(for: conversationId)
+            continuation.yield(items ?? [])
+        }
+        
+        continuation.onTermination = { _ in
+            center.removeObserver(observer)
+        }
+    }
+}
+
+// ViewModel subscribes
+private func observeItems() {
+    let stream = repository.observeActionItems(for: conversationId)
+    Task {
+        for await updatedItems in stream {
+            self.items = updatedItems
+        }
+    }
+}
+```
+
+**5. Lifecycle-Aware ViewModel Management:**
+```swift
+// ❌ BAD: Creates new ViewModel on every sheet re-evaluation
+.sheet(isPresented: $showingActionItems) {
+    let viewModel = ActionItemViewModel(conversationId: conversationId)
+    ConversationActionItemsSheet(viewModel: viewModel, isPresented: $showingActionItems)
+}
+
+// ✅ GOOD: ViewModel initialized once in ChatView init
+struct ChatView: View {
+    @StateObject private var viewModel: ChatViewModel
+    @StateObject private var actionItemViewModel: ActionItemViewModel
+    
+    init(conversationId: String) {
+        _viewModel = StateObject(wrappedValue: ChatViewModel(conversationId: conversationId))
+        _actionItemViewModel = StateObject(wrappedValue: ActionItemViewModel(conversationId: conversationId))
+    }
+    
+    var body: some View {
+        // ...
+        .sheet(isPresented: $showingActionItems) {
+            ConversationActionItemsSheet(
+                viewModel: actionItemViewModel,  // Reuse same instance
+                isPresented: $showingActionItems
+            )
+        }
+        .onChange(of: showingActionItems) { _, isShowing in
+            if isShowing {
+                actionItemViewModel.setConversationData(
+                    messages: viewModel.allMessages,
+                    conversation: viewModel.conversation
+                )
+            }
+        }
+    }
+}
+```
+
+**Trade-offs:**
+- **Pro:** Structured data from unstructured conversations
+- **Pro:** Repository pattern enables testability
+- **Pro:** Observation pattern provides real-time updates
+- **Con:** GPT-4 API calls cost money and take 2-5 seconds
+- **Con:** Manual sorting needed (SwiftData limitations)
+- **Con:** JSON parsing can fail if GPT-4 doesn't follow schema
+
+**Performance:**
+- Extraction: ~2-5 seconds (GPT-4 API call)
+- Parsing: <100ms (JSON decode)
+- Persistence: <100ms (SwiftData)
+- UI Updates: Instant (observation pattern)
+
 ## Future Architectural Considerations
 
 ### AI Integration
-- Add `AIService` layer
-- ViewModels call AIService for summaries, action items
-- AIService uses Cloud Functions + LLM APIs
-- Return structured data to ViewModels
+- ✅ `AIService` layer implemented with GPT-4
+- ✅ ViewModels call AIService for action items extraction
+- ✅ Structured JSON output with error handling
+- 🚧 Future: Add summaries, decision tracking, priority detection
 
 ### Modularization
 - Extract core messaging into framework

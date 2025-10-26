@@ -37,6 +37,10 @@ final class RepositoryFactory {
         AIMessageRepository(database: database)
     }()
     
+    private lazy var _actionItemRepository: ActionItemRepository = {
+        ActionItemRepository(database: database)
+    }()
+    
     // MARK: - Initialization
     
     private init() {
@@ -70,6 +74,11 @@ final class RepositoryFactory {
     /// Get the AI message repository instance
     var aiMessageRepository: AIMessageRepository {
         _aiMessageRepository
+    }
+    
+    /// Get the action item repository instance
+    var actionItemRepository: ActionItemRepositoryProtocol {
+        _actionItemRepository
     }
     
     /// Reset all repositories (useful for testing or logout)
