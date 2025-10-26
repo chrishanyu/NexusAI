@@ -185,17 +185,11 @@ class RealtimePresenceService {
     /// - Returns: Listener handle for cleanup
     func listenToPresence(userId: String, onChange: @escaping (Bool, Date?) -> Void) -> DatabaseHandle {
         let userPresenceRef = rtdb.child("presence").child(userId)
-        print("👂 Setting up presence listener for user: \(userId) at path: presence/\(userId)")
         
         let handle = userPresenceRef.observe(.value) { [weak self] snapshot in
             guard let self = self else { return }
             
-            print("📡 Received presence data for \(userId):")
-            print("   Snapshot exists: \(snapshot.exists())")
-            print("   Snapshot value: \(snapshot.value ?? "nil")")
-            
             guard let data = snapshot.value as? [String: Any] else {
-                print("   ⚠️ No valid data, setting offline")
                 onChange(false, nil)
                 return
             }
@@ -204,26 +198,18 @@ class RealtimePresenceService {
             let lastSeenTimestamp = data["lastSeen"] as? TimeInterval
             let lastSeen = lastSeenTimestamp.map { Date(timeIntervalSince1970: $0 / 1000) }
             
-            print("   isOnline: \(isOnline)")
-            print("   lastSeen: \(lastSeen?.description ?? "nil")")
-            
             // Check for stale presence (heartbeat older than 60s = offline)
             if let heartbeatTimestamp = data["lastHeartbeat"] as? TimeInterval {
                 let heartbeatDate = Date(timeIntervalSince1970: heartbeatTimestamp / 1000)
                 let isStale = Date().timeIntervalSince(heartbeatDate) > self.staleThreshold
                 
-                print("   lastHeartbeat: \(heartbeatDate)")
-                print("   isStale: \(isStale)")
-                
                 if isStale && isOnline {
                     // Presence is stale - consider user offline
-                    print("⚠️ Stale presence detected for user \(userId)")
                     onChange(false, lastSeen)
                     return
                 }
             }
             
-            print("   → Final status: \(isOnline ? "🟢 ONLINE" : "⚫️ offline")")
             onChange(isOnline, lastSeen)
         }
         
