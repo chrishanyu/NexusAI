@@ -9,8 +9,12 @@
 - **Local Persistence:** SwiftData
 - **Architecture:** MVVM (Model-View-ViewModel)
 - **Authentication:** Google Sign-In SDK + Firebase Auth
-- **Minimum iOS Version:** iOS 17.0+
+- **Target iOS Version:** iOS 26.0+ (current deployment)
+- **Minimum iOS Version:** iOS 17.0+ (backward compatibility)
 - **Development Tool:** Xcode 15+
+
+#### iOS Versioning Note
+Apple changed its iOS versioning strategy after iOS 18 to align with macOS and other operating systems. The versioning now matches the year of release, which is why iOS 26 (released in 2026) was the direct successor to iOS 18. This unified approach ensures version consistency across Apple's ecosystem (iOS, macOS, iPadOS, visionOS, etc.).
 
 ### Backend (Firebase)
 - **Authentication:** Firebase Auth (Google Sign-In)
