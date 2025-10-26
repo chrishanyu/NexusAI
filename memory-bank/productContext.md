@@ -142,19 +142,45 @@ First, we need **rock-solid messaging** that teams can trust. Without reliable d
 
 ## User Personas
 
-### Primary: "Remote Engineering Lead"
-- **Name:** Sarah, 32, Engineering Manager
-- **Pain:** Manages distributed team across 3 timezones
-- **Needs:** Quick catch-up, decision tracking, action item management
-- **Wins:** Spends 30 min less daily on context gathering
+### **PRIMARY (SELECTED FOR MVP): Remote Team Professionals** ⭐
 
-### Secondary: "Product Manager"
+**Encompasses:** Engineering Managers, Product Managers, Team Leads working with distributed teams
+
+**Key Characteristics:**
+- Manages distributed team across multiple timezones
+- Juggles multiple conversations and decisions daily
+- Needs to stay on top of action items and commitments
+- Struggles with information overload and context switching
+- Values quick catch-up and decision visibility
+
+**Pain Points:**
+1. **Context Loss:** Hard to catch up after time off or timezone differences
+2. **Decision Tracking:** Decisions buried in long threads
+3. **Action Items:** Tasks mentioned in chat get forgotten
+4. **Priority Confusion:** Can't distinguish urgent from routine messages
+5. **Search Inefficiency:** Hard to find past discussions when needed
+
+**AI Features Addressing Pain Points:**
+1. **Thread Summarization** ✅ - Quick catch-up (addresses Context Loss)
+2. **Action Item Extraction** 🚧 - Never miss tasks (addresses Action Items)
+3. **Decision Tracking** 🚧 - Searchable decision log (addresses Decision Tracking)
+4. **Priority Detection** 🚧 - Focus on what matters (addresses Priority Confusion)
+5. **Smart Search** 🚧 - Find past discussions instantly (addresses Search Inefficiency)
+
+**Success Metrics:**
+- Saves 30+ minutes daily on context gathering
+- 100% action item completion rate (no forgotten tasks)
+- Zero lost decisions (all tracked and searchable)
+- 80% reduction in "where did we discuss X?" questions
+- 50% fewer interruptions from non-urgent messages
+
+### Secondary: "Product Manager" (Future)
 - **Name:** Alex, 28, Product Manager
 - **Pain:** Decisions scattered across Slack, Zoom, Notion
 - **Needs:** Centralized decision log, thread summarization
 - **Wins:** Never loses track of product decisions
 
-### Tertiary: "Remote Developer"
+### Tertiary: "Remote Developer" (Future)
 - **Name:** Jordan, 26, Software Engineer
 - **Pain:** Distracted by non-urgent notifications
 - **Needs:** Priority filtering, focused work time
