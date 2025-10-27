@@ -158,6 +158,21 @@ struct ConversationListView: View {
                     }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .jumpToMessage)) { notification in
+                // Handle jump to message from Nexus
+                guard let source = notification.object as? SourceMessage else { return }
+                
+                // Navigate to the conversation
+                navigationPath.append(source.conversationId)
+                
+                // Post notification with messageId for ChatView to scroll to
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NotificationCenter.default.post(
+                        name: .scrollToMessageInChat,
+                        object: source.id
+                    )
+                }
+            }
         }
     }
     

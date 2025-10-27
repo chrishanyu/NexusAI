@@ -12,6 +12,7 @@
 		7E5A43EA2EA6EADD00EAFFB4 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 7E5A43E92EA6EADD00EAFFB4 /* FirebaseMessaging */; };
 		7E5A43FC2EA702EA00EAFFB4 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 7E5A43FB2EA702EA00EAFFB4 /* GoogleSignIn */; };
 		7E5A43FE2EA702EA00EAFFB4 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 7E5A43FD2EA702EA00EAFFB4 /* GoogleSignInSwift */; };
+		7E7E1DA02EAEE70B00A2303D /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 7E7E1D9F2EAEE70B00A2303D /* FirebaseFunctions */; };
 		7E88C6612EAC1FA90071AFA5 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 7E88C6602EAC1FA90071AFA5 /* FirebaseDatabase */; };
 		7E88C89C2EAC73900071AFA5 /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 7E88C89B2EAC73900071AFA5 /* OpenAI */; };
 /* End PBXBuildFile section */
@@ -72,6 +73,7 @@
 				7E88C6612EAC1FA90071AFA5 /* FirebaseDatabase in Frameworks */,
 				7E5A43FE2EA702EA00EAFFB4 /* GoogleSignInSwift in Frameworks */,
 				7E5A43EA2EA6EADD00EAFFB4 /* FirebaseMessaging in Frameworks */,
+				7E7E1DA02EAEE70B00A2303D /* FirebaseFunctions in Frameworks */,
 				7E5A43FC2EA702EA00EAFFB4 /* GoogleSignIn in Frameworks */,
 				7E88C89C2EAC73900071AFA5 /* OpenAI in Frameworks */,
 				7E5A43E62EA6EACE00EAFFB4 /* FirebaseAuth in Frameworks */,
@@ -158,6 +160,7 @@
 				7E5A43FD2EA702EA00EAFFB4 /* GoogleSignInSwift */,
 				7E88C6602EAC1FA90071AFA5 /* FirebaseDatabase */,
 				7E88C89B2EAC73900071AFA5 /* OpenAI */,
+				7E7E1D9F2EAEE70B00A2303D /* FirebaseFunctions */,
 			);
 			productName = NexusAI;
 			productReference = 7E5A43CD2EA6DD3500EAFFB4 /* NexusAI.app */;
@@ -587,6 +590,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7E5A43FA2EA702EA00EAFFB4 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignInSwift;
+		};
+		7E7E1D9F2EAEE70B00A2303D /* FirebaseFunctions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7E5A43E42EA6EAAB00EAFFB4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFunctions;
 		};
 		7E88C6602EAC1FA90071AFA5 /* FirebaseDatabase */ = {
 			isa = XCSwiftPackageProductDependency;

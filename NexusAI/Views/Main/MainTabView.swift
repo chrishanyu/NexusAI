@@ -7,13 +7,13 @@
 
 import SwiftUI
 
-/// Main tab bar container with Chat and Profile tabs
+/// Main tab bar container with Chat, Nexus, and Profile tabs
 /// Provides bottom navigation for primary app sections
 @available(iOS 17.0, *)
 struct MainTabView: View {
     // MARK: - Properties
     
-    /// Selected tab index (0 = Chat, 1 = Profile)
+    /// Selected tab index (0 = Chat, 1 = Nexus, 2 = Profile)
     /// Defaults to Chat tab on each app launch
     @State private var selectedTab: Int = 0
     
@@ -33,6 +33,8 @@ struct MainTabView: View {
                     case 0:
                         NotificationCenter.default.post(name: .scrollToTopChatTab, object: nil)
                     case 1:
+                        NotificationCenter.default.post(name: .scrollToTopAITab, object: nil)
+                    case 2:
                         NotificationCenter.default.post(name: .scrollToTopProfileTab, object: nil)
                     default:
                         break
@@ -50,12 +52,21 @@ struct MainTabView: View {
                 .accessibilityLabel("Chat Tab")
                 .accessibilityHint("View your conversations")
             
+            // MARK: - Nexus Tab
+            GlobalAIAssistantView()
+                .tabItem {
+                    Label("Nexus", systemImage: "sparkles")
+                }
+                .tag(1)
+                .accessibilityLabel("Nexus Tab")
+                .accessibilityHint("Search across all your conversations with AI")
+            
             // MARK: - Profile Tab
             ProfileView()
                 .tabItem {
                     Label("Profile", systemImage: "person.fill")
                 }
-                .tag(1)
+                .tag(2)
                 .accessibilityLabel("Profile Tab")
                 .accessibilityHint("View your profile and settings")
         }
@@ -70,6 +81,12 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .keyboardWillHide)) { _ in
             withAnimation(.easeOut(duration: 0.25)) {
                 isKeyboardVisible = false
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .switchToChatTab)) { _ in
+            // Switch to Chat tab when Nexus navigates to a message
+            withAnimation {
+                selectedTab = 0
             }
         }
     }

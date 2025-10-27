@@ -20,6 +20,7 @@ struct ChatView: View {
     @State private var showingGroupInfo = false
     @State private var showingAIAssistant = false
     @State private var showingActionItems = false
+    @State private var highlightedMessageId: String? // For jump-to-message highlight
     @StateObject private var actionItemViewModel: ActionItemViewModel
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var conversationListViewModel: ConversationListViewModel
@@ -227,6 +228,13 @@ struct ChatView: View {
                                 }
                             )
                             .id(message.id ?? message.localId ?? UUID().uuidString)
+                            .background(
+                                // Highlight background if this is the targeted message
+                                (highlightedMessageId == (message.id ?? message.localId))
+                                    ? Color.yellow.opacity(0.3)
+                                    : Color.clear
+                            )
+                            .animation(.easeInOut(duration: 0.3), value: highlightedMessageId)
                         }
                         
                         // Invisible anchor for auto-scroll
@@ -301,6 +309,25 @@ struct ChatView: View {
                     // Also update scrollPosition for iOS 26
                     if let lastMessage = viewModel.allMessages.last {
                         scrollPosition = lastMessage.id ?? lastMessage.localId
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .scrollToMessageInChat)) { notification in
+                // Handle scroll to specific message from Nexus
+                guard let messageId = notification.object as? String else { return }
+                
+                // Scroll to the message
+                withAnimation {
+                    proxy.scrollTo(messageId, anchor: .center)
+                }
+                
+                // Highlight the message
+                highlightedMessageId = messageId
+                
+                // Remove highlight after 2 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    withAnimation {
+                        highlightedMessageId = nil
                     }
                 }
             }
