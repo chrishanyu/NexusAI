@@ -760,6 +760,67 @@ First AI-powered feature for Remote Team Professionals persona. GPT-4 analyzes c
 
 ---
 
+### ✅ Per-Conversation AI Assistant (Contextual AI)
+**Status:** COMPLETE  
+**Completion Date:** October 25, 2025  
+**Feature Type:** Contextual AI assistance for individual conversations
+
+**Summary:**
+A dedicated AI assistant for each conversation (accessed via brain icon 🧠 in chat toolbar). Provides 6 AI capabilities scoped to the current conversation: summarization, action items, decisions, priorities, deadlines, and Q&A. Uses GPT-4 with a unified system prompt and stores conversation history in SwiftData.
+
+**Core Features:**
+1. **Conversational Interface** - Chat with AI about the current conversation
+2. **6 AI Capabilities:**
+   - Summarization (thread summaries)
+   - Action Item Extraction (tasks and commitments)
+   - Decision Tracking (agreements and reasoning)
+   - Priority Analysis (urgency detection)
+   - Deadline Detection (time-sensitive items)
+   - Natural Q&A (answer questions about context)
+3. **4 Suggested Prompts** - Quick access for common requests
+4. **Persistent History** - AI conversations saved per chat in SwiftData
+5. **Real-Time Updates** - Observation pattern with AsyncStream
+
+**Files Created (6 files):**
+- `Views/Chat/AIAssistantView.swift` - AI chat UI with suggested prompts
+- `Views/Chat/AIMessageBubbleView.swift` - Message bubbles for AI responses
+- `ViewModels/AIAssistantViewModel.swift` - State management (220+ lines)
+- `Services/AIService.swift` - OpenAI GPT-4 integration (500+ lines)
+- `Data/Models/LocalAIMessage.swift` - SwiftData model
+- `Data/Repositories/AIMessageRepository.swift` - Persistence layer
+
+**Files Modified:**
+- `Views/Chat/ChatView.swift` - Added brain icon toolbar button and sheet
+
+**Technical Implementation:**
+- **Unified System Prompt** - Single prompt defines all 6 AI capabilities
+- **Repository Pattern** - AIMessageRepository for local persistence
+- **Observation Pattern** - AsyncStream for real-time message updates
+- **Protocol-Based DI** - Injectable AIService for testability
+- **API Key** - Uses Config.plist (demo only, should be server-side for production)
+
+**What Works:**
+- ✅ Access via brain icon (🧠) in ChatView toolbar
+- ✅ Conversational AI with suggested prompts
+- ✅ All 6 capabilities available through natural language
+- ✅ Persistent conversation history per chat
+- ✅ Real-time message updates
+- ✅ Error handling with user-friendly messages
+- ✅ Clear chat history option
+- ✅ Loading states and animations
+
+**Key Distinction:**
+- **Per-Conversation AI (🧠):** Analyzes CURRENT conversation only
+- **Nexus AI (✨):** Searches across ALL conversations using RAG
+- **Action Items (✓):** Extracts structured tasks from conversation
+
+**Performance:**
+- Query time: ~2-3 seconds (GPT-4 API call)
+- Cost: ~$0.01-0.02 per query
+- Persistence: <100ms (SwiftData)
+
+---
+
 ### 🚧 RAG-Powered Global AI Assistant (Nexus)
 **Status:** NEARLY COMPLETE (11/12 tasks)  
 **Start Date:** October 27, 2025  

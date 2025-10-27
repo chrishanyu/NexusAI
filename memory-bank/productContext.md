@@ -42,15 +42,25 @@ First, we need **rock-solid messaging** that teams can trust. Without reliable d
 
 ### Post-MVP User Experience (AI Features)
 
-**Thread Summarization:**
-- Tap "Summarize" on long thread
-- AI provides TL;DR with key points
-- Saves time catching up
+**Per-Conversation AI Assistant:** ✅ **IMPLEMENTED**
+- Tap brain icon (🧠) in any chat
+- Chat interface with suggested prompts
+- Ask questions: "Summarize this thread", "What decisions were made?", "Any action items?"
+- AI responds based on conversation context
+- Conversation history persists per chat
+- 6 capabilities: summarization, action items, decisions, priorities, deadlines, Q&A
 
-**Action Item Extraction:**
-- AI automatically detects tasks mentioned
-- Creates actionable list from conversations
+**Action Item Extraction:** ✅ **IMPLEMENTED**
+- Tap checklist icon in any chat
+- AI extracts structured tasks with GPT-4
+- Shows assignees, deadlines, and priorities
+- Mark items complete with checkbox
 - Links back to original messages
+
+**Thread Summarization:** ✅ **IMPLEMENTED** (via Per-Conversation AI)
+- Ask AI: "Summarize this thread"
+- AI provides TL;DR with key points from the conversation
+- Saves time catching up on long discussions
 
 **Smart Search (Nexus - RAG-Powered Global AI):** ✅ **IMPLEMENTED**
 - Natural language queries: "What did we decide about Q4 goals?"
@@ -165,11 +175,18 @@ First, we need **rock-solid messaging** that teams can trust. Without reliable d
 5. **Search Inefficiency:** Hard to find past discussions when needed
 
 **AI Features Addressing Pain Points:**
-1. **Thread Summarization** ✅ - Quick catch-up (addresses Context Loss)
+1. **Per-Conversation AI Assistant** ✅ - Chat with AI about specific conversations (addresses Context Loss, Action Items, Decision Tracking) **[COMPLETE - Oct 25, 2025]**
+   - Brain icon (🧠) in chat toolbar
+   - 6 capabilities: Summarization, Action Items, Decisions, Priorities, Deadlines, Q&A
+   - Persistent AI conversation history per chat
 2. **Action Item Extraction** ✅ - Never miss tasks (addresses Action Items) **[COMPLETE - Oct 26, 2025]**
+   - Structured task extraction with GPT-4
+   - Mark complete, track deadlines, priorities
 3. **RAG-Powered Global AI (Nexus)** ✅ - Natural language Q&A over ALL conversations (addresses Search Inefficiency) **[NEARLY COMPLETE - Oct 27, 2025]**
-4. **Decision Tracking** 🚧 - Searchable decision log (addresses Decision Tracking)
-5. **Priority Detection** 🚧 - Focus on what matters (addresses Priority Confusion)
+   - Semantic search with vector embeddings
+   - Source attribution with tap-to-navigate
+4. **Decision Tracking** 🚧 - Searchable decision log (addresses Decision Tracking) *(Partially via Per-Conversation AI)*
+5. **Priority Detection** 🚧 - Focus on what matters (addresses Priority Confusion) *(Partially via Per-Conversation AI)*
 
 **Success Metrics:**
 - Saves 30+ minutes daily on context gathering

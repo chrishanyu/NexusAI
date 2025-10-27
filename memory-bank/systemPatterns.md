@@ -1274,7 +1274,248 @@ func navigateToMessage(conversationId: String, messageId: String) {
 
 ---
 
-### 10. AI-Powered Feature Pattern (Action Items)
+### 10. Per-Conversation AI Assistant Pattern
+**Purpose:** Provide contextual AI assistance scoped to individual conversations
+
+**Architecture:**
+```
+User taps brain icon (🧠)
+    ↓
+AIAssistantView (sheet modal)
+    ↓
+AIAssistantViewModel
+    ↓
+├── Build conversation context (messages + participants)
+├── Call AIService.sendMessage(prompt, context)
+│   ├── Unified system prompt (6 capabilities)
+│   └── GPT-4 with conversation context
+├── Save user message → AIMessageRepository
+├── Get AI response
+└── Save AI response → AIMessageRepository
+    ↓
+Observation pattern updates UI
+    ↓
+Persistent AI conversation history
+```
+
+**Key Components:**
+
+**1. Unified System Prompt (Single Source of Truth):**
+```swift
+// AIService.swift
+private let unifiedSystemPrompt = """
+You are an intelligent assistant integrated into a team messaging app called NexusAI...
+
+CORE CAPABILITIES:
+1. **Summarization**: Provide concise summaries of conversation threads
+2. **Action Item Extraction**: Identify tasks, commitments, and responsibilities
+3. **Decision Tracking**: Recognize when decisions are made
+4. **Priority Analysis**: Determine urgency based on keywords and context
+5. **Deadline Detection**: Extract all time commitments and due dates
+6. **Natural Q&A**: Answer questions about the conversation context
+
+CONVERSATION CONTEXT PROVIDED:
+- Full message history with participant names
+- Participant information and roles
+- Conversation metadata and timestamps
+
+RESPONSE GUIDELINES:
+- Be concise but thorough
+- Use clear formatting: bullet points, numbering, structure
+- Reference specific messages or participants when relevant
+- If information isn't in the conversation, state that clearly
+...
+"""
+```
+
+**2. AI Message Repository Pattern:**
+```swift
+// AIMessageRepository.swift
+class AIMessageRepository: AIMessageRepositoryProtocol {
+    private let database: LocalDatabase
+    
+    // Save AI or user message
+    func saveMessage(text: String, isFromAI: Bool, conversationId: String) async throws {
+        let localMessage = LocalAIMessage(
+            text: text,
+            isFromAI: isFromAI,
+            timestamp: Date(),
+            conversationId: conversationId
+        )
+        try database.context.insert(localMessage)
+        try database.context.save()
+        database.notifyChanges()
+    }
+    
+    // Real-time observation with AsyncStream
+    func observeMessages(conversationId: String) -> AsyncStream<[LocalAIMessage]> {
+        AsyncStream { continuation in
+            let center = NotificationCenter.default
+            let observer = center.addObserver(
+                forName: LocalDatabase.dataDidChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task {
+                    let messages = try? await self?.fetchMessages(for: conversationId)
+                    continuation.yield(messages ?? [])
+                }
+            }
+            
+            // Initial fetch
+            Task {
+                let messages = try? await fetchMessages(for: conversationId)
+                continuation.yield(messages ?? [])
+            }
+            
+            continuation.onTermination = { _ in
+                center.removeObserver(observer)
+            }
+        }
+    }
+}
+```
+
+**3. ViewModel with Observation:**
+```swift
+// AIAssistantViewModel.swift
+@MainActor
+class AIAssistantViewModel: ObservableObject {
+    @Published var messages: [LocalAIMessage] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    
+    private let aiService: AIService
+    private let repository: AIMessageRepository
+    private var observationTask: Task<Void, Never>?
+    
+    init(conversationId: String) {
+        self.conversationId = conversationId
+        self.repository = RepositoryFactory.shared.aiMessageRepository
+        self.aiService = AIService()
+        
+        // Start observing messages
+        startObservingMessages()
+    }
+    
+    private func startObservingMessages() {
+        observationTask = Task { @MainActor in
+            let stream = repository.observeMessages(conversationId: conversationId)
+            for await messages in stream {
+                self.messages = messages
+            }
+        }
+    }
+    
+    func sendMessage(text: String, conversation: Conversation, messages: [Message]) async {
+        // Build context
+        let context = aiService.buildConversationContext(
+            conversation: conversation,
+            messages: messages
+        )
+        
+        // Save user message
+        try await repository.saveMessage(text: text, isFromAI: false, conversationId: conversationId)
+        
+        // Get AI response
+        let aiResponse = try await aiService.sendMessage(prompt: text, conversationContext: context)
+        
+        // Save AI response
+        try await repository.saveMessage(text: aiResponse, isFromAI: true, conversationId: conversationId)
+    }
+}
+```
+
+**4. UI with Suggested Prompts:**
+```swift
+// AIAssistantView.swift
+struct AIAssistantView: View {
+    @StateObject private var viewModel: AIAssistantViewModel
+    let conversation: Conversation?
+    let messages: [Message]
+    
+    private let suggestedPrompts: [SuggestedPrompt] = [
+        SuggestedPrompt(
+            title: "Summarize thread",
+            icon: "doc.text.fill",
+            userMessage: "Please provide a concise summary of this conversation..."
+        ),
+        SuggestedPrompt(
+            title: "Extract action items",
+            icon: "checklist",
+            userMessage: "Extract all action items, tasks, and commitments..."
+        ),
+        SuggestedPrompt(
+            title: "What decisions were made?",
+            icon: "checkmark.circle.fill",
+            userMessage: "What decisions, agreements, or conclusions were made..."
+        ),
+        SuggestedPrompt(
+            title: "Any deadlines?",
+            icon: "calendar",
+            userMessage: "Are there any deadlines, due dates, or time-sensitive..."
+        )
+    ]
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                ScrollView {
+                    // Suggested prompts (if no messages)
+                    if !viewModel.hasMessages {
+                        suggestedPromptsView
+                    }
+                    
+                    // Messages
+                    ForEach(viewModel.messages) { message in
+                        AIMessageBubbleView(message: message)
+                    }
+                }
+                
+                // Input bar
+                MessageInputView(text: $userInput, onSend: {
+                    await viewModel.sendMessage(
+                        text: userInput,
+                        conversation: conversation,
+                        messages: messages
+                    )
+                })
+            }
+        }
+    }
+}
+```
+
+**Trade-offs:**
+- **Pro:** All 6 AI capabilities in one conversational interface
+- **Pro:** Persistent conversation history per chat
+- **Pro:** Unified system prompt = consistent behavior
+- **Pro:** Repository pattern enables testability
+- **Con:** Uses Config.plist (demo only - should be server-side for production)
+- **Con:** GPT-4 API costs (~$0.01-0.02 per query)
+- **Con:** Latency: 2-3 seconds per query
+
+**Performance Characteristics:**
+- Query time: ~2-3 seconds (GPT-4 API call)
+- Persistence: <100ms (SwiftData)
+- UI updates: Instant (observation pattern)
+- Cost: ~$0.01-0.02 per query
+
+**Critical Implementation Notes:**
+1. **Unified System Prompt:** All capabilities defined in one place for consistency
+2. **Observation Pattern:** Real-time UI updates via AsyncStream
+3. **Repository Pattern:** Clean separation between business logic and persistence
+4. **Conversation Context:** Full message history passed to GPT-4 for informed responses
+5. **Demo API Key:** Uses Config.plist - must move to Cloud Functions for production
+
+**Distinction from Other AI Features:**
+- **Per-Conversation AI (🧠):** Analyzes CURRENT conversation only
+- **Nexus AI (✨):** Searches across ALL conversations using RAG
+- **Action Items (✓):** Extracts structured tasks (same AIService, different method)
+
+---
+
+### 11. AI-Powered Feature Pattern (Action Items)
 **Purpose:** Extract structured data from conversations using GPT-4 with JSON parsing
 
 **Architecture:**

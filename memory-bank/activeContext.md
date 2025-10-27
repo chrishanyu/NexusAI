@@ -142,7 +142,70 @@ Nexus is a global AI assistant that can answer questions by searching across ALL
 
 ---
 
-## Previously Completed (First AI Feature! 🎉🤖)
+## Previously Completed AI Features
+
+### ✅ Per-Conversation AI Assistant (Contextual AI) 🧠
+**Status:** COMPLETE  
+**Completion Date:** October 25, 2025  
+**Feature Type:** Contextual AI assistance for individual conversations
+
+**What It Does:**
+A dedicated AI assistant for each conversation that helps users understand and analyze that specific chat. Users can ask questions, get summaries, extract information, and get insights - all scoped to the current conversation.
+
+**Implementation:**
+- **UI:** Sheet modal accessed via brain icon (🧠) in ChatView toolbar
+- **ViewModel:** `AIAssistantViewModel` with Combine/observation patterns
+- **Service:** `AIService` with GPT-4 integration (unified system prompt)
+- **Persistence:** `AIMessageRepository` storing AI conversations in SwiftData
+- **API Key:** Uses `Config.plist` (demo only - should be server-side for production)
+
+**6 Core Capabilities (via Unified System Prompt):**
+1. **Summarization** - Concise summaries of conversation threads
+2. **Action Item Extraction** - Identify tasks, commitments, and responsibilities
+3. **Decision Tracking** - Recognize decisions, agreements, and reasoning
+4. **Priority Analysis** - Determine urgency based on context and keywords
+5. **Deadline Detection** - Extract time commitments and due dates
+6. **Natural Q&A** - Answer questions about the conversation context
+
+**4 Suggested Prompts for Remote Teams:**
+- "Summarize thread" - Quick overview of key points
+- "Extract action items" - Find tasks and assignments
+- "What decisions were made?" - Track agreements
+- "Any deadlines?" - Identify time-sensitive commitments
+
+**Files Created:**
+- `Views/Chat/AIAssistantView.swift` - AI chat UI (conversational interface)
+- `Views/Chat/AIMessageBubbleView.swift` - Message bubbles for AI chat
+- `ViewModels/AIAssistantViewModel.swift` - State management and AI interactions
+- `Services/AIService.swift` - OpenAI GPT-4 integration with unified system prompt
+- `Data/Models/LocalAIMessage.swift` - SwiftData model for AI conversations
+- `Data/Repositories/AIMessageRepository.swift` - Persistence layer
+
+**Files Modified:**
+- `Views/Chat/ChatView.swift` - Added brain icon toolbar button and sheet presentation
+
+**What Works:**
+- ✅ Access via brain icon in any chat conversation
+- ✅ Conversational AI interface with suggested prompts
+- ✅ Persistent conversation history per chat (survives app restarts)
+- ✅ All 6 AI capabilities available through natural language
+- ✅ Real-time observation pattern for message updates
+- ✅ Error handling with user-friendly messages
+- ✅ Loading states and smooth animations
+- ✅ Clear chat history option
+
+**Technical Achievements:**
+- Unified system prompt defines all AI capabilities in one place
+- Repository pattern with SwiftData for local persistence
+- Observation pattern with AsyncStream for real-time updates
+- Protocol-based dependency injection for testability
+- Clean separation: AIService (GPT-4) + AIMessageRepository (persistence)
+
+**Distinction from Nexus:**
+- **Per-Conversation AI:** Analyzes the CURRENT conversation only (brain icon)
+- **Nexus (Global AI):** Searches across ALL conversations using RAG (sparkles icon)
+
+---
 
 ### ✅ AI-Powered Action Item Extraction & Management
 **Status:** COMPLETE  
