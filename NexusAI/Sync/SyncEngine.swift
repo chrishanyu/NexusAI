@@ -262,6 +262,29 @@ final class SyncEngine {
         print("✅ Force sync completed")
     }
     
+    /// Force sync messages for a specific conversation (for chat pull-to-refresh)
+    /// Pushes pending local messages and pulls fresh data from Firestore listeners
+    func forceSyncMessages(conversationId: String) async {
+        guard networkMonitor.isConnected else {
+            print("⚠️ Cannot force sync messages - device is offline")
+            return
+        }
+        
+        print("🔄 Force sync messages triggered for conversation: \(conversationId)")
+        
+        // Sync pending messages for this conversation
+        let (synced, failed) = await syncPendingMessages()
+        
+        // Firestore listeners are already active and will automatically
+        // receive any new messages from the server for this conversation
+        
+        if synced > 0 || failed > 0 {
+            print("✅ Force sync messages completed - Synced: \(synced) | Failed: \(failed)")
+        } else {
+            print("✅ Force sync messages completed - No pending messages")
+        }
+    }
+    
     /// Sync all pending and retry-eligible failed messages
     private func syncPendingMessages() async -> (synced: Int, failed: Int) {
         do {

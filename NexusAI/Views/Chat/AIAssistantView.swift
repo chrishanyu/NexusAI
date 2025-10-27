@@ -116,64 +116,67 @@ Look for keywords like 'urgent', 'ASAP', 'critical', deadlines, and production i
         NavigationView {
             VStack(spacing: 0) {
                 // AI Chat Messages
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Header with gradient
-                        headerView
-                        
-                        // Welcome message (only show if no messages)
-                        if !viewModel.hasMessages && !viewModel.isLoading {
-                            welcomeMessageView
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            // Header with gradient
+                            headerView
+                            
+                            // Welcome message (only show if no messages)
+                            if !viewModel.hasMessages && !viewModel.isLoading {
+                                welcomeMessageView
+                            }
+                            
+                            // Suggested Prompts (only show if no messages)
+                            if !viewModel.hasMessages && !viewModel.isLoading {
+                                suggestedPromptsView
+                            }
+                            
+                            // Messages
+                            ForEach(viewModel.messages) { message in
+                                AIMessageBubbleView(message: message)
+                                    .id(message.id)
+                            }
+                            
+                            // Loading indicator
+                            if viewModel.isLoading {
+                                loadingView
+                            }
+                            
+                            // Invisible anchor for auto-scroll
+                            Color.clear
+                                .frame(height: 1)
+                                .id("bottom")
                         }
-                        
-                        // Suggested Prompts (only show if no messages)
-                        if !viewModel.hasMessages && !viewModel.isLoading {
-                            suggestedPromptsView
-                        }
-                        
-                        // Messages
-                        ForEach(viewModel.messages) { message in
-                            AIMessageBubbleView(message: message)
-                                .id(message.id)
-                        }
-                        
-                        // Loading indicator
-                        if viewModel.isLoading {
-                            loadingView
-                        }
-                        
-                        // Invisible anchor for auto-scroll
-                        Color.clear
-                            .frame(height: 1)
-                            .id("bottom")
+                        .scrollTargetLayout() // iOS 26: Enable precise scroll positioning
+                        .padding()
                     }
-                    .scrollTargetLayout() // iOS 26: Enable precise scroll positioning
-                    .padding()
-                }
-                .scrollPosition(id: $scrollPosition, anchor: .bottom) // iOS 26: Modern scroll control
-                .onChange(of: viewModel.messages.count) { oldCount, newCount in
-                    // Skip initial load to prevent unwanted scroll animation
-                    if isInitialLoad {
-                        isInitialLoad = false
-                        // Set scroll position without animation
-                        if let lastMessage = viewModel.messages.last {
-                            scrollPosition = lastMessage.id.description
-                        }
-                        return
+                    .scrollPosition(id: $scrollPosition, anchor: .bottom) // iOS 26: Modern scroll control
+                    .onAppear {
+                        // Scroll to bottom on initial load
+                        scrollToBottom(proxy: proxy, animated: false)
                     }
-                    
-                    // Auto-scroll on new messages
-                    if newCount > oldCount {
-                        if let lastMessage = viewModel.messages.last {
-                            scrollPosition = lastMessage.id.description
+                    .onChange(of: viewModel.messages.count) { oldCount, newCount in
+                        // Skip initial load to prevent unwanted scroll animation
+                        if isInitialLoad {
+                            isInitialLoad = false
+                            scrollToBottom(proxy: proxy, animated: false)
+                            return
+                        }
+                        
+                        // Auto-scroll on new messages (user message or AI response)
+                        if newCount > oldCount {
+                            scrollToBottom(proxy: proxy, animated: true)
                         }
                     }
-                }
-                .onChange(of: viewModel.isLoading) { oldValue, newValue in
-                    // Scroll when loading completes and AI response arrives
-                    if oldValue && !newValue {
-                        if let lastMessage = viewModel.messages.last {
-                            scrollPosition = lastMessage.id.description
+                    .onChange(of: viewModel.isLoading) { oldValue, newValue in
+                        // Scroll when AI starts thinking or completes
+                        if !oldValue && newValue {
+                            // AI started thinking - scroll to show loading indicator
+                            scrollToBottom(proxy: proxy, animated: true)
+                        } else if oldValue && !newValue {
+                            // AI finished responding - scroll to show the response
+                            scrollToBottom(proxy: proxy, animated: true)
                         }
                     }
                 }
@@ -477,6 +480,17 @@ Look for keywords like 'urgent', 'ASAP', 'critical', deadlines, and production i
         userInput = prompt.userMessage
         // Send it as a user message
         handleSendMessage()
+    }
+    
+    /// Scroll to bottom of message list
+    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = false) {
+        if animated {
+            withAnimation(.easeOut(duration: 0.3)) {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        } else {
+            proxy.scrollTo("bottom", anchor: .bottom)
+        }
     }
     
 }

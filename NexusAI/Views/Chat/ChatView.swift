@@ -248,6 +248,9 @@ struct ChatView: View {
             }
             .scrollPosition(id: $scrollPosition, anchor: .bottom) // iOS 26: Modern scroll control
             .refreshable {
+                // Trigger force sync from cloud
+                await viewModel.refresh()
+                
                 // Save current scroll anchor (first visible message) before loading
                 await MainActor.run {
                     // Store the ID of the first message as scroll anchor

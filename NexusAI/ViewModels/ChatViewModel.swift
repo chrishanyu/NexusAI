@@ -378,6 +378,23 @@ class ChatViewModel: ObservableObject {
         }
     }
     
+    /// Manually refresh messages (triggered by pull-to-refresh)
+    func refresh() async {
+        // If using local-first sync, trigger a force sync for this conversation
+        if Constants.FeatureFlags.isLocalFirstSyncEnabled {
+            await SyncEngine.shared.forceSyncMessages(conversationId: conversationId)
+        } else {
+            // Legacy mode: restart message listener
+            await MainActor.run {
+                if let listener = messageListener {
+                    listener.remove()
+                    messageListener = nil
+                }
+                startListeningToMessages()
+            }
+        }
+    }
+    
     /// Retry sending a failed message
     /// - Parameter localId: The localId of the failed message to retry
     func retryMessage(localId: String) {
