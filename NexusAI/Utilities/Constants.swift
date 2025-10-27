@@ -156,6 +156,18 @@ extension Notification.Name {
     /// Notification to scroll Profile tab to top
     static let scrollToTopProfileTab = Notification.Name("scrollToTopProfileTab")
     
+    /// Notification to scroll Nexus tab to top
+    static let scrollToTopAITab = Notification.Name("scrollToTopAITab")
+    
+    /// Notification to jump to a specific message in a conversation (from Nexus source tap)
+    static let jumpToMessage = Notification.Name("jumpToMessage")
+    
+    /// Notification to scroll to a specific message in ChatView (contains messageId as object)
+    static let scrollToMessageInChat = Notification.Name("scrollToMessageInChat")
+    
+    /// Notification to switch to Chat tab
+    static let switchToChatTab = Notification.Name("switchToChatTab")
+    
     /// Keyboard notifications
     static let keyboardWillShow = UIResponder.keyboardWillShowNotification
     static let keyboardWillHide = UIResponder.keyboardWillHideNotification
