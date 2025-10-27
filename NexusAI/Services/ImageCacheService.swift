@@ -77,8 +77,6 @@ actor ImageCacheService {
         if currentSize > maxCacheSize {
             try await pruneCache(maxSize: maxCacheSize)
         }
-        
-        print("✅ ImageCacheService: Cached image for URL (size: \(data.count) bytes)")
     }
     
     /// Retrieve cached image for a URL
@@ -102,7 +100,6 @@ actor ImageCacheService {
         metadata[url]?.lastAccess = Date()
         saveMetadata()
         
-        print("✅ ImageCacheService: Cache hit for URL")
         return data
     }
     

@@ -223,15 +223,10 @@ class ChatViewModel: ObservableObject {
             // Return early if no messages to mark as read
             guard !messageIds.isEmpty else { return }
             
-            print("📖 [READ_RECEIPT] Marking \(messageIds.count) messages as read...")
-            print("📖 [READ_RECEIPT] Message IDs: \(messageIds)")
-            print("📖 [READ_RECEIPT] User ID: \(currentUserId)")
-            
             // Mark messages as read using appropriate service
             do {
                 if let repository = messageRepository {
                     // Use repository (local-first sync)
-                    print("📖 [READ_RECEIPT] Using repository to mark as read")
                     try await repository.markMessagesAsRead(
                         messageIds: messageIds,
                         conversationId: conversationId,
@@ -239,17 +234,14 @@ class ChatViewModel: ObservableObject {
                     )
                 } else if let service = messageService {
                     // Use legacy service
-                    print("📖 [READ_RECEIPT] Using legacy service to mark as read")
                     try await service.markMessagesAsRead(
                         messageIds: messageIds,
                         conversationId: conversationId,
                         userId: currentUserId
                     )
                 }
-                print("✅ [READ_RECEIPT] Successfully marked \(messageIds.count) messages as read")
             } catch {
                 // Silent failure - read receipts shouldn't block chat functionality
-                print("⚠️ [READ_RECEIPT] Failed to mark messages as read: \(error.localizedDescription)")
             }
         }
     }
@@ -752,11 +744,8 @@ class ChatViewModel: ObservableObject {
             Task { @MainActor in
                 self?.isOtherUserOnline = isOnline
                 self?.otherUserLastSeen = lastSeen
-                print("👤 Presence updated for other user: \(isOnline ? "online" : "offline")")
             }
         }
-        
-        print("✅ Started listening to presence for user: \(otherUserId)")
     }
     
     /// Clean up the presence listener
@@ -772,8 +761,6 @@ class ChatViewModel: ObservableObject {
         // Clear the stored values
         presenceListenerHandle = nil
         otherUserIdForPresence = nil
-        
-        print("✅ Presence listener cleaned up")
     }
     
     // MARK: - Error Handling

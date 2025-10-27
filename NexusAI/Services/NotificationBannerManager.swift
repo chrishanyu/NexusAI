@@ -148,17 +148,13 @@ class NotificationBannerManager: ObservableObject {
     /// Handle a new message and determine if a banner should be shown
     /// - Parameter message: The new message to process
     func handleNewMessage(_ message: Message) {
-        print("📨 NotificationBannerManager: Processing new message from \(message.senderName)")
-        
         // Filter: Don't show banner for own messages
         guard message.senderId != currentUserId else {
-            print("🚫 NotificationBannerManager: Skipping own message")
             return
         }
         
         // Filter: Don't show banner for currently open conversation
         guard message.conversationId != currentConversationId else {
-            print("🚫 NotificationBannerManager: Skipping message in current conversation")
             return
         }
         
@@ -177,7 +173,6 @@ class NotificationBannerManager: ObservableObject {
                 timestamp: message.timestamp
             )
             
-            print("✅ NotificationBannerManager: Creating banner for message\(senderUser?.profileImageUrl != nil ? " with profile image" : "")")
             showBanner(bannerData)
         }
     }
@@ -187,12 +182,9 @@ class NotificationBannerManager: ObservableObject {
     /// Show a banner (or add to queue if one is already showing)
     /// - Parameter bannerData: The banner data to display
     func showBanner(_ bannerData: BannerData) {
-        print("📢 NotificationBannerManager: Request to show banner for conversation: \(bannerData.conversationId)")
-        
         // If no banner is currently showing, display immediately
         if currentBanner == nil {
             currentBanner = bannerData
-            print("✅ NotificationBannerManager: Displaying banner immediately")
             
             // Auto-dismiss after 4 seconds
             Task {
@@ -207,9 +199,7 @@ class NotificationBannerManager: ObservableObject {
             // Banner already showing, add to queue
             if bannerQueue.count < 3 { // Max queue size of 3
                 bannerQueue.append(bannerData)
-                print("📋 NotificationBannerManager: Added to queue (queue size: \(bannerQueue.count))")
             } else {
-                print("⚠️ NotificationBannerManager: Queue full, dropping oldest banner")
                 bannerQueue.removeFirst()
                 bannerQueue.append(bannerData)
             }
@@ -218,13 +208,11 @@ class NotificationBannerManager: ObservableObject {
     
     /// Dismiss the current banner and show next in queue if available
     func dismissBanner() {
-        print("❌ NotificationBannerManager: Dismissing banner")
         currentBanner = nil
         
         // Check if there are banners in queue
         if !bannerQueue.isEmpty {
             let nextBanner = bannerQueue.removeFirst()
-            print("➡️ NotificationBannerManager: Showing next banner from queue")
             showBanner(nextBanner)
         }
     }
@@ -234,8 +222,6 @@ class NotificationBannerManager: ObservableObject {
     /// Handle banner tap - navigate to conversation and dismiss
     func handleBannerTap() {
         guard let banner = currentBanner else { return }
-        
-        print("👆 NotificationBannerManager: Banner tapped, navigating to: \(banner.conversationId)")
         
         // Trigger navigation via NotificationManager
         notificationManager?.navigateToConversation(conversationId: banner.conversationId)
@@ -252,8 +238,6 @@ class NotificationBannerManager: ObservableObject {
         currentConversationId = id
         
         if let id = id {
-            print("🔍 NotificationBannerManager: Current conversation set to: \(id)")
-            
             // Remove any queued banners for this conversation
             bannerQueue.removeAll { $0.conversationId == id }
             
@@ -261,8 +245,6 @@ class NotificationBannerManager: ObservableObject {
             if currentBanner?.conversationId == id {
                 dismissBanner()
             }
-        } else {
-            print("🔍 NotificationBannerManager: No conversation currently open")
         }
     }
 }

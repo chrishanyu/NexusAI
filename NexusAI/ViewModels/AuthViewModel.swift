@@ -120,7 +120,6 @@ class AuthViewModel: ObservableObject {
                 
                 do {
                     try await presenceService.setUserOnline(userId: userId)
-                    print("👥 User presence set to online (RTDB)")
                 } catch {
                     print("⚠️ Failed to set user online: \(error.localizedDescription)")
                 }
@@ -205,7 +204,6 @@ class AuthViewModel: ObservableObject {
             if let userId = currentUser?.id {
                 do {
                     try await presenceService.setUserOffline(userId: userId, delay: 0)
-                    print("👥 User presence set to offline (RTDB)")
                 } catch {
                     print("⚠️ Failed to set user offline: \(error.localizedDescription)")
                 }
@@ -287,7 +285,6 @@ class AuthViewModel: ObservableObject {
                 
                 do {
                     try await presenceService.setUserOnline(userId: userId)
-                    print("👥 User presence initialized and set online (auth state listener)")
                 } catch {
                     print("⚠️ Failed to set user online: \(error.localizedDescription)")
                 }

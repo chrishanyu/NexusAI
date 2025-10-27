@@ -20,7 +20,9 @@ struct NewConversationView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var isCreatingConversation = false
-    @State private var selectedConversation: Conversation?
+    
+    /// Callback to navigate to a conversation after creation
+    let onConversationCreated: (String) -> Void
     
     private let db = FirebaseService.shared.db
     private let conversationService = ConversationService()
@@ -232,11 +234,17 @@ struct NewConversationView: View {
                 
                 await MainActor.run {
                     self.isCreatingConversation = false
-                    self.selectedConversation = conversation
                     
-                    // Dismiss this sheet to return to conversation list
-                    // The conversation list will show the new/existing conversation
+                    // Dismiss this sheet first
                     dismiss()
+                    
+                    // Navigate to the conversation
+                    if let conversationId = conversation.id {
+                        // Delay slightly to allow sheet dismissal to complete
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            onConversationCreated(conversationId)
+                        }
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -262,7 +270,6 @@ private struct UserRowView: View {
                 displayName: user.displayName,
                 size: Constants.Dimensions.profileImageSmall
             )
-            .onlineStatusIndicator(isOnline: user.isOnline)
             
             // User info
             VStack(alignment: .leading, spacing: 4) {
@@ -290,6 +297,8 @@ private struct UserRowView: View {
 // MARK: - Preview
 
 #Preview {
-    NewConversationView()
+    NewConversationView { conversationId in
+        print("Navigate to conversation: \(conversationId)")
+    }
 }
 

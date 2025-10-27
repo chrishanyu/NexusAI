@@ -83,10 +83,16 @@ struct ConversationListView: View {
                 }
             }
             .sheet(isPresented: $showingNewConversation) {
-                NewConversationView()
+                NewConversationView { conversationId in
+                    // Navigate to the newly created conversation
+                    navigationPath.append(conversationId)
+                }
             }
             .sheet(isPresented: $showingNewGroup) {
-                CreateGroupView()
+                CreateGroupView { conversationId in
+                    // Navigate to the newly created group
+                    navigationPath.append(conversationId)
+                }
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button("OK") {

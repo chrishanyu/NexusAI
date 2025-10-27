@@ -22,7 +22,6 @@ struct ParticipantSelectionRow: View {
                     displayName: user.displayName,
                     size: 32
                 )
-                .onlineStatusIndicator(isOnline: user.isOnline)
                 
                 // User info
                 VStack(alignment: .leading, spacing: 4) {

@@ -164,7 +164,6 @@ final class SyncEngine {
                     }
                     
                     // Trigger immediate sync cycle for pending entities
-                    print("🔄 Database changed - triggering immediate sync...")
                     await self.performSyncCycle()
                 }
             }
@@ -232,13 +231,6 @@ final class SyncEngine {
                 message.syncStatusRaw == "pending"
             }
             let pendingMessages = try database.fetch(LocalMessage.self, where: pendingPredicate)
-            
-            if !pendingMessages.isEmpty {
-                print("📤 [SYNC] Found \(pendingMessages.count) pending messages to sync")
-                for msg in pendingMessages {
-                    print("📤 [SYNC] Pending: \(msg.id) - readBy: \(msg.readBy), status: \(msg.status)")
-                }
-            }
             
             // Query for failed messages
             let failedPredicate = #Predicate<LocalMessage> { message in
@@ -595,9 +587,6 @@ final class SyncEngine {
             return
         }
         
-        print("📥 [PULL] handleMessageModified called for: \(messageId)")
-        print("📥 [PULL] Remote readBy: \(message.readBy), status: \(message.status)")
-        
         // Fetch local version
         let predicate = #Predicate<LocalMessage> { localMessage in
             localMessage.id == messageId
@@ -610,8 +599,6 @@ final class SyncEngine {
             return
         }
         
-        print("📥 [PULL] Local readBy: \(localMessage.readBy), status: \(localMessage.status), syncStatus: \(localMessage.syncStatus)")
-        
         // Skip processing if local message is already synced and timestamps match
         // This prevents unnecessary DB operations when the pull listener receives
         // a message that we just pushed (avoiding the push→pull→update cycle)
@@ -623,34 +610,22 @@ final class SyncEngine {
             let deliveredToChanged = Set(localMessage.deliveredTo) != Set(message.deliveredTo)
             let statusChanged = localMessage.status != message.status
             
-            print("📥 [PULL] Early exit check - synced: true, timestamps match: true")
-            print("📥 [PULL] readByChanged: \(readByChanged), deliveredToChanged: \(deliveredToChanged), statusChanged: \(statusChanged)")
-            
             if !readByChanged && !deliveredToChanged && !statusChanged {
                 // No status changes - skip processing
-                print("📥 [PULL] No changes detected - skipping processing")
                 return
             }
             // Status changed - continue processing to update readBy/deliveredTo/status
-            print("📥 [PULL] Status fields changed - continuing to process update")
         }
         
         // Resolve conflict using ConflictResolver
         let resolution = conflictResolver.resolveMessage(local: localMessage, remote: message)
         
-        print("📥 [PULL] Conflict resolution result: \(resolution.isLocalWinner ? "local wins" : "remote wins")")
-        
         // Update sync status and fields based on resolution
         if resolution.isLocalWinner {
             // Local version won - mark as pending to sync back
             localMessage.syncStatus = .pending
-            print("📥 [PULL] Local wins - marking as pending to sync back")
         } else {
             // Remote version won - update ALL fields from remote
-            print("📥 [PULL] Remote wins - updating local with remote data")
-            print("📥 [PULL] Updating readBy: \(localMessage.readBy) → \(message.readBy)")
-            print("📥 [PULL] Updating status: \(localMessage.status) → \(message.status)")
-            
             localMessage.text = message.text
             localMessage.senderName = message.senderName
             localMessage.senderId = message.senderId
@@ -662,16 +637,12 @@ final class SyncEngine {
             localMessage.serverTimestamp = message.timestamp
             localMessage.syncStatus = .synced
             localMessage.updatedAt = Date()
-            
-            print("📥 [PULL] Local now has - readBy: \(localMessage.readBy), status: \(localMessage.status)")
         }
         
         try database.save()
-        print("📥 [PULL] Database saved")
         
         // Notify observers of changes
         database.notifyChanges()
-        print("📥 [PULL] Changes notified - UI should update")
     }
     
     /// Handle deleted message from Firestore
@@ -833,7 +804,6 @@ final class SyncEngine {
             localConversation.updatedAt = conversation.updatedAt ?? conversation.createdAt
             localConversation.serverTimestamp = conversation.updatedAt ?? conversation.createdAt
             localConversation.syncStatus = .synced
-            print("🔄 Conversation conflict resolved (remote wins): \(conversationId)")
         }
         
         try database.save()
@@ -985,7 +955,6 @@ final class SyncEngine {
             localUser.isOnline = user.isOnline
             localUser.lastSeen = user.lastSeen
             localUser.syncStatus = .pending // Profile needs sync back
-            print("🔄 User conflict resolved (local profile wins, remote presence): \(userId)")
         } else {
             // Remote version won - update ALL fields from remote
             localUser.displayName = user.displayName
@@ -1119,10 +1088,6 @@ final class SyncEngine {
         }
         
         do {
-            print("📤 [SYNC_MSG] Starting sync for message: \(localMessage.id)")
-            print("📤 [SYNC_MSG] readBy: \(localMessage.readBy), deliveredTo: \(localMessage.deliveredTo)")
-            print("📤 [SYNC_MSG] status: \(localMessage.status), syncStatus: \(localMessage.syncStatus)")
-            
             // Get conversation to retrieve participant IDs
             let conversationRef = firebaseService.db
                 .collection(Constants.Collections.conversations)
@@ -1148,29 +1113,22 @@ final class SyncEngine {
                 // Use arrayUnion to merge arrays instead of overwriting
                 if !localMessage.readBy.isEmpty {
                     updateData["readBy"] = FieldValue.arrayUnion(localMessage.readBy)
-                    print("📤 [SYNC_MSG] Adding readBy: \(localMessage.readBy)")
                 }
                 if !localMessage.deliveredTo.isEmpty {
                     updateData["deliveredTo"] = FieldValue.arrayUnion(localMessage.deliveredTo)
-                    print("📤 [SYNC_MSG] Adding deliveredTo: \(localMessage.deliveredTo)")
                 }
                 
                 // Determine status based on readBy/deliveredTo arrays
                 // If anyone other than sender has read it, status is .read
                 if localMessage.readBy.contains(where: { $0 != localMessage.senderId }) {
                     updateData["status"] = MessageStatus.read.rawValue
-                    print("📤 [SYNC_MSG] Setting status to .read")
                 } else if localMessage.deliveredTo.contains(where: { $0 != localMessage.senderId }) {
                     updateData["status"] = MessageStatus.delivered.rawValue
-                    print("📤 [SYNC_MSG] Setting status to .delivered")
                 } else {
                     updateData["status"] = MessageStatus.sent.rawValue
-                    print("📤 [SYNC_MSG] Setting status to .sent")
                 }
                 
-                print("📤 [SYNC_MSG] Updating Firestore with data: \(updateData)")
                 try await docRef.updateData(updateData)
-                print("📤 [SYNC_MSG] Firestore update successful")
             } else {
                 // New message - create document with full data
                 let messageData: [String: Any] = [
@@ -1209,8 +1167,6 @@ final class SyncEngine {
                 message: message
             )
             
-            // Reduce log verbosity - only log ID
-            print("✅ Synced: \(localMessage.id)")
             return true
             
         } catch {
@@ -1299,7 +1255,6 @@ final class SyncEngine {
             localConversation.serverTimestamp = Date()
             try database.save()
             
-            print("✅ Conversation synced successfully: \(localConversation.id)")
             return true
             
         } catch {
@@ -1368,7 +1323,6 @@ final class SyncEngine {
             localUser.serverTimestamp = Date()
             try database.save()
             
-            print("✅ User synced successfully: \(localUser.id)")
             return true
             
         } catch {

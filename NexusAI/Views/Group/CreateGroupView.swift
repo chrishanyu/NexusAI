@@ -23,6 +23,9 @@ struct CreateGroupView: View {
     @State private var errorMessage: String?
     @State private var isCreatingGroup = false
     
+    /// Callback to navigate to a group after creation
+    let onGroupCreated: (String) -> Void
+    
     private let db = FirebaseService.shared.db
     private let conversationService = ConversationService()
     private let authService = AuthService()
@@ -374,7 +377,7 @@ struct CreateGroupView: View {
                 }
                 
                 // Create group conversation
-                let _ = try await conversationService.createGroupConversation(
+                let conversation = try await conversationService.createGroupConversation(
                     creatorId: currentUserId,
                     participantIds: Array(selectedUserIds),
                     participantsInfo: participantsInfo,
@@ -384,8 +387,16 @@ struct CreateGroupView: View {
                 await MainActor.run {
                     self.isCreatingGroup = false
                     
-                    // Dismiss the sheet - the new group will appear in the conversation list
+                    // Dismiss this sheet first
                     dismiss()
+                    
+                    // Navigate to the group
+                    if let conversationId = conversation.id {
+                        // Delay slightly to allow sheet dismissal to complete
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            onGroupCreated(conversationId)
+                        }
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -400,6 +411,8 @@ struct CreateGroupView: View {
 // MARK: - Preview
 
 #Preview {
-    CreateGroupView()
+    CreateGroupView { conversationId in
+        print("Navigate to group: \(conversationId)")
+    }
 }
 

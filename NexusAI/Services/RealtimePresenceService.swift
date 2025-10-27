@@ -63,8 +63,6 @@ class RealtimePresenceService {
         
         // Set up network monitoring
         setupNetworkMonitoring()
-        
-        print("✅ RealtimePresenceService initialized")
     }
     
     deinit {
@@ -78,11 +76,8 @@ class RealtimePresenceService {
     /// - Parameter userId: The user's Firebase Auth UID
     func initializePresence(for userId: String) {
         guard !isInitialized else {
-            print("⚠️ Presence already initialized for user")
             return
         }
-        
-        print("👥 Initializing presence for user: \(userId)")
         
         // Set up presence reference path: presence/{userId}
         presenceRef = rtdb.child("presence").child(userId)
@@ -94,7 +89,6 @@ class RealtimePresenceService {
         startHeartbeat(userId: userId)
         
         isInitialized = true
-        print("✅ Presence initialized for user: \(userId)")
     }
     
     /// Set user online
@@ -114,13 +108,9 @@ class RealtimePresenceService {
         do {
             // Update RTDB (real-time presence)
             try await presenceRef.setValue(presenceData)
-            print("📝 RTDB write successful for user \(userId) at path: presence/\(userId)")
-            print("   Data: \(presenceData)")
             
             // Also update Firestore (for persistence and queries)
             try await updateFirestorePresence(userId: userId, isOnline: true)
-            
-            print("✅ User set online: \(userId)")
         } catch {
             print("❌ Failed to set user online: \(error.localizedDescription)")
             
@@ -263,8 +253,6 @@ class RealtimePresenceService {
         presenceRef = nil
         cancellables.removeAll()
         isInitialized = false
-        
-        print("🧹 RealtimePresenceService cleaned up")
     }
     
     // MARK: - Private Methods
@@ -357,7 +345,6 @@ class RealtimePresenceService {
                 guard let self = self else { return }
                 
                 if isConnected {
-                    print("🌐 Network reconnected - flushing presence queue")
                     Task {
                         await self.presenceQueue.flushQueue(using: self)
                     }
@@ -409,7 +396,6 @@ actor PresenceQueue {
     // MARK: - Initialization
     
     init() {
-        print("📦 PresenceQueue initialized")
     }
     
     // MARK: - Public Methods
@@ -428,8 +414,6 @@ actor PresenceQueue {
         
         // Deduplicate: overwrite any existing update for this user
         queue[userId] = update
-        
-        print("📦 Queued presence update: \(userId) -> \(isOnline ? "online" : "offline") (queue size: \(queue.count))")
     }
     
     /// Flush all queued updates by sending them to the service
@@ -439,8 +423,6 @@ actor PresenceQueue {
             print("📭 Queue is empty, nothing to flush")
             return
         }
-        
-        print("🚀 Flushing \(queue.count) queued presence updates")
         
         // Get all updates and clear the queue
         let updates = queue.values.sorted { $0.timestamp < $1.timestamp }
@@ -454,10 +436,7 @@ actor PresenceQueue {
                 } else {
                     try await service.setUserOffline(userId: update.userId, delay: 0)
                 }
-                print("✅ Flushed presence update for \(update.userId)")
             } catch {
-                print("❌ Failed to flush presence update for \(update.userId): \(error.localizedDescription)")
-                
                 // Re-queue failed update
                 queue[update.userId] = update
                 print("🔄 Re-queued failed update for \(update.userId)")

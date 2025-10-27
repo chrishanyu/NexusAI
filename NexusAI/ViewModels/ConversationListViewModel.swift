@@ -566,24 +566,17 @@ class ConversationListViewModel: ObservableObject {
         
         // Only set up listener if we have participants to track
         guard !allParticipantIds.isEmpty else {
-            print("⚠️ No participants to track presence for")
             return
         }
         
         // Convert to array - RTDB doesn't have the 10-user limit like Firestore!
         let participantIdsArray = Array(allParticipantIds)
-        print("👥 Setting up presence listeners for \(participantIdsArray.count) users:")
-        participantIdsArray.forEach { print("   - \($0)") }
         
         // Set up presence listener using RTDB
         presenceListenerHandles = presenceService.listenToMultiplePresence(userIds: participantIdsArray) { [weak self] presenceMap in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.userPresenceMap = presenceMap
-                print("👥 Presence updated for \(presenceMap.count) users:")
-                presenceMap.forEach { userId, isOnline in
-                    print("   - \(userId): \(isOnline ? "🟢 ONLINE" : "⚫️ offline")")
-                }
             }
         }
     }
