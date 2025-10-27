@@ -19,9 +19,20 @@ Apple changed its iOS versioning strategy after iOS 18 to align with macOS and o
 ### Backend (Firebase)
 - **Authentication:** Firebase Auth (Google Sign-In)
 - **Database:** Cloud Firestore (NoSQL, real-time)
+- **Realtime Database:** Firebase RTDB (presence system with onDisconnect)
 - **Push Notifications:** Firebase Cloud Messaging (FCM)
-- **Cloud Functions:** Node.js (for notification triggers, future AI integration)
+- **Cloud Functions:** Node.js (notification triggers, RAG AI backend)
+  - `embedNewMessage` - Auto-generate vector embeddings for new messages
+  - `ragSearch` - Semantic search using cosine similarity
+  - `ragQuery` - Full RAG pipeline with GPT-4
 - **Storage:** Firebase Storage (post-MVP for media)
+
+### AI & Machine Learning
+- **LLM:** OpenAI GPT-4-turbo-preview (conversational AI, structured extraction)
+- **Embeddings:** OpenAI text-embedding-3-small (1536 dimensions for semantic search)
+- **RAG Pattern:** Retrieval-Augmented Generation for conversation history Q&A
+- **Vector Storage:** Firestore collection `messageEmbeddings`
+- **Semantic Search:** Cosine similarity calculation in Cloud Functions
 
 ### Development Environment
 - **macOS:** 14.0+ (Sonoma or later)
@@ -147,6 +158,17 @@ typingIndicators/
     - conversationId, userId
     - isTyping: boolean
     - timestamp (expires after 3s)
+
+messageEmbeddings/
+  {embeddingId}/
+    - messageId: string (reference to original message)
+    - conversationId: string
+    - userId: string (sender)
+    - embedding: array[1536] (vector from text-embedding-3-small)
+    - text: string (original message text)
+    - senderName: string
+    - timestamp: Timestamp
+    - createdAt: Timestamp (when embedding was generated)
 ```
 
 ### Indexes Required
@@ -155,6 +177,8 @@ typingIndicators/
 - conversations: participantIds (array-contains), updatedAt (desc)
 - messages: conversationId, timestamp (desc)
 - typingIndicators: conversationId, timestamp
+- messageEmbeddings: userId, timestamp (desc) - for fetching user's message history
+- messageEmbeddings: conversationId, timestamp (desc) - for conversation-specific search
 ```
 
 ## Security Rules (Firestore)
@@ -283,11 +307,21 @@ match /typingIndicators/{indicatorId} {
 
 ## Future Technical Considerations
 
-### AI Integration (Post-MVP)
-- **LLM API:** OpenAI GPT-4 or Anthropic Claude
-- **RAG Pipeline:** Vector database (Pinecone/Chroma) for message embeddings
-- **Function Calling:** LLM triggers actions (create tasks, schedule meetings)
-- **Cloud Functions:** Process messages, call LLM APIs, return structured data
+### AI Integration (IMPLEMENTED!) ✅
+- **LLM API:** OpenAI GPT-4-turbo-preview (for conversational AI and structured extraction)
+- **Embeddings:** OpenAI text-embedding-3-small (1536 dimensions)
+- **RAG Pipeline:** Firestore-based vector storage with cosine similarity search
+- **Implemented Features:**
+  - ✅ **Action Item Extraction** - GPT-4 extracts tasks from conversations
+  - ✅ **Global AI Assistant (Nexus)** - RAG-powered Q&A over conversation history
+  - ✅ **Semantic Search** - Vector embeddings for natural language queries
+  - ✅ **Source Attribution** - Linking AI responses to original messages
+  - ✅ **Multi-turn Conversations** - Context retention with conversation history
+- **Cloud Functions:** Three deployed functions:
+  - `embedNewMessage` - Auto-generates embeddings on message creation
+  - `ragSearch` - Semantic search with cosine similarity
+  - `ragQuery` - Full RAG pipeline (search + GPT-4 generation)
+- **Future Enhancements:** Function calling, proactive suggestions, decision tracking, priority detection
 
 ### Scalability Path
 - **Message Archiving:** Move old messages to cold storage

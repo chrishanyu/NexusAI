@@ -963,7 +963,318 @@ iOS 26 introduced significant improvements to `ScrollView` control:
 - Use `@available(iOS 26, *)` for iOS 26-specific APIs
 - Maintain fallback implementations for older iOS versions
 
-### 9. AI-Powered Feature Pattern (Action Items)
+### 9. RAG-Powered Global AI Assistant Pattern (Nexus)
+**Purpose:** Answer user questions by semantically searching conversation history and generating informed responses
+
+**Architecture:**
+```
+User asks question
+    ↓
+GlobalAIViewModel.sendQuery()
+    ↓
+RAGService.query() → ragQuery Cloud Function
+    ↓
+Backend Pipeline:
+├── 1. Embed query (text-embedding-3-small)
+├── 2. Search Firestore embeddings (cosine similarity)
+├── 3. Retrieve top K relevant messages
+├── 4. Build augmented prompt:
+│   ├── System prompt (Nexus identity)
+│   ├── Conversation history (last 10 Q&A pairs)
+│   ├── RAG context (relevant messages)
+│   └── User question
+├── 5. Call GPT-4 with augmented prompt
+└── 6. Return answer + sources
+    ↓
+GlobalAIViewModel processes response
+    ↓
+UI displays answer with source cards
+    ↓
+User taps source → Navigate to original message
+```
+
+**Key Components:**
+
+**1. Vector Embeddings for Semantic Search:**
+```javascript
+// Cloud Function: embedNewMessage.js
+exports.embedNewMessage = onDocumentCreated(
+  "conversations/{conversationId}/messages/{messageId}",
+  async (event) => {
+    const message = event.data.data();
+    
+    // Generate embedding using OpenAI
+    const embedding = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: message.text,
+    });
+    
+    // Store in Firestore
+    await admin.firestore().collection("messageEmbeddings").add({
+      messageId: event.params.messageId,
+      conversationId: event.params.conversationId,
+      embedding: embedding.data[0].embedding, // 1536 dimensions
+      text: message.text,
+      senderId: message.senderId,
+      senderName: message.senderName,
+      timestamp: message.timestamp,
+    });
+  }
+);
+```
+
+**2. Semantic Search with Cosine Similarity:**
+```javascript
+// Cloud Function: ragSearch.js
+function cosineSimilarity(vecA, vecB) {
+  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+  const magnitudeA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+  const magnitudeB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+  return dotProduct / (magnitudeA * magnitudeB);
+}
+
+exports.ragSearch = onCall(async (request) => {
+  const { query, userId, topK = 5 } = request.data;
+  
+  // 1. Embed the query
+  const queryEmbedding = await generateEmbedding(query);
+  
+  // 2. Fetch user's message embeddings
+  const embeddings = await fetchUserEmbeddings(userId);
+  
+  // 3. Calculate similarity scores
+  const scoredMessages = embeddings.map(msg => ({
+    ...msg,
+    score: cosineSimilarity(queryEmbedding, msg.embedding)
+  }));
+  
+  // 4. Sort by relevance and return top K
+  return scoredMessages
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK);
+});
+```
+
+**3. RAG Pipeline with Conversation History:**
+```javascript
+// Cloud Function: ragQuery.js
+const NEXUS_SYSTEM_PROMPT = `You are Nexus, an AI assistant...`;
+
+function buildAugmentedPrompt(userQuestion, relevantMessages, conversationHistory) {
+  const messages = [
+    { role: "system", content: NEXUS_SYSTEM_PROMPT }
+  ];
+  
+  // Add conversation history (last 10 Q&A pairs)
+  conversationHistory.slice(-10).forEach(turn => {
+    messages.push({ role: "user", content: turn.question });
+    messages.push({ role: "assistant", content: turn.answer });
+  });
+  
+  // Add current query with RAG context
+  const ragContext = formatRAGContext(relevantMessages);
+  messages.push({
+    role: "user",
+    content: `${ragContext}\n\nUser Question: ${userQuestion}`
+  });
+  
+  return messages;
+}
+
+exports.ragQuery = onCall(async (request) => {
+  const { question, userId, conversationHistory = [] } = request.data;
+  
+  // 1. Semantic search
+  const searchResults = await ragSearch({ query: question, userId, topK: 5 });
+  
+  // 2. Build augmented prompt (ALWAYS, even if searchResults is empty)
+  const messages = buildAugmentedPrompt(question, searchResults, conversationHistory);
+  
+  // 3. Generate answer with GPT-4
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4-turbo-preview",
+    messages: messages,
+    temperature: 0.7,
+  });
+  
+  const answer = completion.choices[0].message.content;
+  
+  // 4. Return answer + sources
+  return {
+    answer: answer,
+    sources: searchResults.map(msg => ({
+      conversationId: msg.conversationId,
+      messageId: msg.messageId,
+      excerpt: msg.text.substring(0, 150),
+      senderName: msg.senderName,
+      timestamp: msg.timestamp,
+      relevanceScore: msg.score,
+    })),
+    queryTime: new Date().toISOString(),
+  };
+});
+```
+
+**4. iOS Client Integration:**
+```swift
+// RAGService.swift
+class RAGService {
+    private let functions = Functions.functions()
+    
+    func query(question: String, conversationHistory: [[String: String]]? = nil) async throws -> RAGResponse {
+        let ragQuery = functions.httpsCallable("ragQuery")
+        
+        let requestData: [String: Any] = [
+            "question": question,
+            "conversationHistory": conversationHistory ?? []
+        ]
+        
+        let result = try await ragQuery.call(requestData)
+        return try processResponse(result)
+    }
+}
+
+// GlobalAIViewModel.swift
+@MainActor
+class GlobalAIViewModel: ObservableObject {
+    @Published var messages: [ConversationMessage] = []
+    private let ragService: RAGService
+    
+    func sendQuery(_ text: String) {
+        // Add user message
+        let userMessage = ConversationMessage(content: text, isFromUser: true)
+        messages.append(userMessage)
+        
+        Task {
+            do {
+                // Build conversation history
+                let history = buildConversationHistory()
+                
+                // Query RAG backend
+                let response = try await ragService.query(
+                    question: text,
+                    conversationHistory: history
+                )
+                
+                // Add AI response with sources
+                let aiMessage = ConversationMessage(
+                    content: response.answer,
+                    isFromUser: false,
+                    sources: response.sources
+                )
+                messages.append(aiMessage)
+            } catch {
+                // Handle error
+            }
+        }
+    }
+    
+    private func buildConversationHistory() -> [[String: String]] {
+        // Extract last 10 Q&A pairs
+        var history: [[String: String]] = []
+        for message in messages.suffix(20) {
+            if message.isFromUser {
+                history.append(["question": message.content])
+            } else {
+                if var last = history.last, last["question"] != nil {
+                    history[history.count - 1]["answer"] = message.content
+                }
+            }
+        }
+        return history
+    }
+}
+```
+
+**5. Source Attribution UI:**
+```swift
+// SourceMessageCard.swift
+struct SourceMessageCard: View {
+    let source: SourceMessage
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 8) {
+                // Conversation name
+                Text(source.conversationName)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                // Message excerpt
+                Text(source.excerpt)
+                    .font(.subheadline)
+                    .lineLimit(3)
+                
+                HStack {
+                    // Sender and timestamp
+                    Text(source.senderName)
+                    Text("•")
+                    Text(source.timestamp.formatted())
+                    
+                    Spacer()
+                    
+                    // Relevance score
+                    Text("\(Int(source.relevanceScore * 100))% match")
+                        .font(.caption2)
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+        }
+    }
+}
+
+// Navigation logic
+func navigateToMessage(conversationId: String, messageId: String) {
+    // 1. Switch to Chat tab
+    NotificationCenter.default.post(name: .switchToChatTab, object: nil)
+    
+    // 2. Navigate to conversation and highlight message
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        NotificationCenter.default.post(
+            name: .jumpToMessage,
+            object: nil,
+            userInfo: ["conversationId": conversationId, "messageId": messageId]
+        )
+    }
+}
+```
+
+**Trade-offs:**
+- **Pro:** Natural language Q&A over entire conversation history
+- **Pro:** Semantic search finds relevant messages even with different wording
+- **Pro:** Multi-turn conversations with context retention
+- **Pro:** Source attribution for transparency
+- **Con:** Requires Cloud Functions (deployment complexity)
+- **Con:** OpenAI API costs (~$0.01-0.03 per query)
+- **Con:** Latency: 2-5 seconds per query (embedding + search + GPT-4)
+- **Con:** Embeddings only for new messages (historical messages not embedded)
+- **Con:** No real-time updates (embeddings generated on message create)
+
+**Performance Characteristics:**
+- Embedding generation: ~200-500ms (text-embedding-3-small)
+- Semantic search: ~500-1000ms (Firestore query + cosine similarity)
+- GPT-4 generation: ~1-3 seconds (depends on prompt length)
+- Total latency: ~2-5 seconds
+- Embedding dimensions: 1536
+- Top K results: 5 messages
+- Conversation history: Last 10 Q&A pairs
+- Cost: ~$0.01 (embedding) + $0.02 (GPT-4) = $0.03 per query
+
+**Critical Implementation Notes:**
+1. **Always Call GPT-4:** Even when RAG finds zero results, GPT-4 naturally explains limitations
+2. **Conversation History:** Passed from client to maintain multi-turn context
+3. **Unified System Prompt:** Ensures consistent AI behavior across follow-ups
+4. **Error Handling:** Helpful messages instead of generic errors for out-of-scope queries
+5. **Cross-Tab Navigation:** Uses NotificationCenter to coordinate tab switching + message jumping
+
+---
+
+### 10. AI-Powered Feature Pattern (Action Items)
 **Purpose:** Extract structured data from conversations using GPT-4 with JSON parsing
 
 **Architecture:**

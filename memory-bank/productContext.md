@@ -52,10 +52,14 @@ First, we need **rock-solid messaging** that teams can trust. Without reliable d
 - Creates actionable list from conversations
 - Links back to original messages
 
-**Smart Search:**
+**Smart Search (Nexus - RAG-Powered Global AI):** ✅ **IMPLEMENTED**
 - Natural language queries: "What did we decide about Q4 goals?"
-- AI finds relevant discussions across all chats
-- Understands context, not just keywords
+- Semantic search finds relevant messages across ALL conversations
+- AI (GPT-4) synthesizes answers from multiple sources
+- Source attribution links back to original messages
+- Multi-turn conversations: ask follow-up questions like "Tell me more"
+- Tap source cards to jump directly to original message in chat
+- Works across all your conversations, not just one thread
 
 **Priority Detection:**
 - AI flags urgent messages that need immediate attention
@@ -163,9 +167,9 @@ First, we need **rock-solid messaging** that teams can trust. Without reliable d
 **AI Features Addressing Pain Points:**
 1. **Thread Summarization** ✅ - Quick catch-up (addresses Context Loss)
 2. **Action Item Extraction** ✅ - Never miss tasks (addresses Action Items) **[COMPLETE - Oct 26, 2025]**
-3. **Decision Tracking** 🚧 - Searchable decision log (addresses Decision Tracking)
-4. **Priority Detection** 🚧 - Focus on what matters (addresses Priority Confusion)
-5. **Smart Search** 🚧 - Find past discussions instantly (addresses Search Inefficiency)
+3. **RAG-Powered Global AI (Nexus)** ✅ - Natural language Q&A over ALL conversations (addresses Search Inefficiency) **[NEARLY COMPLETE - Oct 27, 2025]**
+4. **Decision Tracking** 🚧 - Searchable decision log (addresses Decision Tracking)
+5. **Priority Detection** 🚧 - Focus on what matters (addresses Priority Confusion)
 
 **Success Metrics:**
 - Saves 30+ minutes daily on context gathering

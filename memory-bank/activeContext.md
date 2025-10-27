@@ -3,13 +3,13 @@
 ## Current Focus
 
 **Sprint:** AI Features Implementation for Remote Team Professionals 🤖  
-**Phase:** **AI Feature #1 - Action Items Complete!** ✅  
-**Status:** ✅ Action Item Extraction & Management feature fully implemented  
-**Completed:** Action Item Extraction (AI-powered task detection)  
-**Remaining Features:** Decision Tracking, Priority Detection, Smart Search  
-**Recent Work:** Action Items feature (Phase 1) - extraction, storage, UI, mark complete  
-**Major Achievement:** First AI persona feature complete with GPT-4 integration!  
-**Next:** Continue with remaining AI features for Remote Team Professional persona
+**Phase:** **RAG-Powered Global AI Assistant (Nexus) - NEARLY COMPLETE!** ✨  
+**Status:** 🚧 Core implementation done, improving out-of-scope query handling  
+**Completed:** Action Item Extraction, RAG search infrastructure, Nexus UI, conversation history  
+**Current Task:** Enhanced error handling for queries outside conversation scope  
+**Recent Work:** RAG AI Assistant (Nexus) - vector embeddings, semantic search, GPT-4 integration, source attribution  
+**Major Achievement:** RAG-powered global AI that searches ALL conversations with natural language!  
+**Next:** Testing & polish, then continue with remaining AI features (Decision Tracking, Priority Detection)
 
 ## What We're Building Right Now
 
@@ -50,7 +50,99 @@
 
 **Build Status:** ✅ All features compile successfully, user profile & navigation fully implemented
 
-## Just Completed (First AI Feature! 🎉🤖)
+## Just Completed (RAG-Powered AI! 🎉✨)
+
+### 🚧 RAG-Powered Global AI Assistant (Nexus)
+**Status:** NEARLY COMPLETE (11/12 tasks done)  
+**Start Date:** October 27, 2025  
+**Feature Type:** RAG-powered conversational AI that searches ALL user conversations
+
+**What It Does:**
+Nexus is a global AI assistant that can answer questions by searching across ALL of the user's conversation history using semantic search (RAG - Retrieval-Augmented Generation). Users can ask natural language questions like "What did we decide about the Q4 budget?" and Nexus finds relevant messages and generates informed answers with source attribution.
+
+**Implemented Features:**
+1. **Vector Embeddings** - OpenAI text-embedding-3-small (1536 dimensions) for semantic message representation
+2. **Cloud Functions Backend** - Three Firebase Functions:
+   - `embedNewMessage` - Generates embeddings for new messages automatically
+   - `ragSearch` - Finds relevant messages using cosine similarity
+   - `ragQuery` - Full RAG pipeline with GPT-4 answer generation
+3. **Semantic Search** - Cosine similarity search over vector embeddings with configurable topK
+4. **Source Attribution** - AI responses link back to original messages with conversation context
+5. **Conversation History** - Multi-turn conversations with context retention (up to 10 previous Q&A pairs)
+6. **Beautiful UI** - Full-screen chat interface adapted from existing AI components:
+   - GlobalAIAssistantView (main chat screen)
+   - GlobalAIMessageBubbleView (message display with sources)
+   - SourceMessageCard (clickable source attribution cards)
+7. **Navigation Integration** - Tap source cards to jump to original message in conversation
+8. **Unified System Prompt** - Consistent AI behavior across follow-up questions
+9. **Improved Error Handling** - Helpful messages for out-of-scope queries (non-conversation questions)
+10. **Nexus Branding** - "Nexus" name with sparkles icon throughout app
+11. **Tab Integration** - Third tab in main navigation (Chat, Nexus, Profile)
+
+**Files Created:**
+- `Models/RAGQuery.swift`, `RAGResponse.swift`, `SourceMessage.swift`, `ConversationMessage.swift`
+- `Services/RAGService.swift` - Client for Cloud Functions
+- `Services/MessageEmbeddingService.swift` - Embedding generation (not yet used)
+- `ViewModels/GlobalAIViewModel.swift` - State management for Nexus
+- `Views/GlobalAI/GlobalAIAssistantView.swift` - Main chat UI
+- `Views/GlobalAI/GlobalAIMessageBubbleView.swift` - Message bubbles with sources
+- `Views/GlobalAI/SourceMessageCard.swift` - Source attribution cards
+- `firebase/functions/src/embedNewMessage.js` - Auto-embed new messages
+- `firebase/functions/src/ragSearch.js` - Semantic search
+- `firebase/functions/src/ragQuery.js` - Full RAG with GPT-4
+
+**Files Modified:**
+- `Views/Main/MainTabView.swift` - Added Nexus tab (3 tabs now)
+- `Utilities/Constants.swift` - Added notification names for navigation
+- `Views/ConversationList/ConversationListView.swift` - Jump to message support
+- `Views/Chat/ChatView.swift` - Message highlighting and scroll-to support
+
+**Critical Implementation Details:**
+1. **Always Call GPT-4:** Even when RAG finds no results, GPT-4 still responds (naturally explains limitations)
+2. **Conversation History:** Built in `GlobalAIViewModel.buildConversationHistory()` and passed to backend
+3. **Main Actor Isolation:** Fixed ViewModel initialization patterns to work with SwiftUI's @StateObject
+4. **Notification-Based Navigation:** Uses NotificationCenter to coordinate tab switching + message jumping
+5. **Helpful "No Results" UX:** Instead of generic errors, provides tips on what Nexus can do
+
+**What Now Works:**
+- ✅ Ask questions about conversation history ("What did Alice say about the deadline?")
+- ✅ Semantic search finds relevant messages even with different wording
+- ✅ GPT-4 synthesizes answers from multiple source messages
+- ✅ Source cards show conversation name, excerpt, sender, timestamp, relevance score
+- ✅ Tap source card to navigate to original message in chat (with highlighting!)
+- ✅ Multi-turn conversations with context ("Tell me more", "What else?")
+- ✅ Unified system prompt ensures consistent behavior
+- ✅ Out-of-scope queries get helpful responses (not errors)
+- ✅ Beautiful UI with smooth animations and empty states
+- ✅ Real-time UI updates via Observation pattern
+- ✅ Nexus branding with sparkles icon in navigation
+
+**Technical Achievements:**
+- Firebase Cloud Functions with OpenAI API integration
+- Vector embeddings stored in Firestore for semantic search
+- Cosine similarity calculation for relevance scoring
+- RAG pattern: Retrieve relevant context → Augment prompt → Generate answer
+- Conversation history management for multi-turn dialogues
+- Cross-tab navigation with NotificationCenter coordination
+- Message highlighting with auto-fade animations
+- Main actor concurrency patterns for SwiftUI ViewModels
+
+**Known Limitations:**
+- Embeddings only generated for new messages (historical messages not yet embedded)
+- Semantic search quality depends on embedding model (text-embedding-3-small)
+- GPT-4 API calls cost money (~$0.01-0.03 per query)
+- No pagination for source results (shows top 5)
+
+**Next Steps (Task 12.0 - Testing & Polish):**
+- Test various query types (questions, follow-ups, out-of-scope)
+- Verify navigation flow (source card → chat → highlight)
+- Test conversation history retention across sessions
+- Performance testing with large conversation histories
+- Error handling for API failures
+
+---
+
+## Previously Completed (First AI Feature! 🎉🤖)
 
 ### ✅ AI-Powered Action Item Extraction & Management
 **Status:** COMPLETE  

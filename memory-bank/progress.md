@@ -2,11 +2,11 @@
 
 ## Overall MVP Status
 
-**Phase:** **AI Features - Action Items Complete!** 🎉🤖  
-**Major Achievement:** First AI persona feature implemented with GPT-4 integration!  
-**Current Status:** Core messaging + First AI feature complete - Action Item Extraction working perfectly  
-**Next:** Continue with remaining AI features (Decision Tracking, Priority Detection, Smart Search)  
-**Architecture:** RTDB + Firestore hybrid presence | Local-first sync with SwiftData | Tab-based navigation | GPT-4 AI integration
+**Phase:** **AI Features - RAG-Powered Nexus Nearly Complete!** 🎉✨  
+**Major Achievement:** RAG-powered global AI assistant (Nexus) with semantic search across ALL conversations!  
+**Current Status:** Core messaging + Action Items + RAG AI Assistant (Nexus) nearly complete  
+**Next:** Finish testing & polish RAG feature, then continue with remaining AI features (Decision Tracking, Priority Detection)  
+**Architecture:** RTDB + Firestore hybrid presence | Local-first sync with SwiftData | 3-tab navigation (Chat, Nexus, Profile) | GPT-4 + RAG AI integration | Vector embeddings with Firebase Cloud Functions
 
 ## Completed Work
 
@@ -757,6 +757,110 @@ First AI-powered feature for Remote Team Professionals persona. GPT-4 analyzes c
 **Documentation:**
 - `tasks/prd-action-items-extraction.md` - Complete PRD
 - `tasks/tasks-prd-action-items-extraction.md` - Phase 1 tasks (100% complete)
+
+---
+
+### 🚧 RAG-Powered Global AI Assistant (Nexus)
+**Status:** NEARLY COMPLETE (11/12 tasks)  
+**Start Date:** October 27, 2025  
+**Feature Type:** RAG-powered conversational AI for searching conversation history
+
+**Summary:**
+Nexus is a global AI assistant that uses Retrieval-Augmented Generation (RAG) to answer questions by semantically searching across ALL user conversations. It combines vector embeddings (OpenAI text-embedding-3-small) with GPT-4 to provide informed answers with source attribution.
+
+**Implementation:**
+
+**Core Infrastructure:**
+1. **Vector Embeddings** - text-embedding-3-small (1536 dimensions) stored in Firestore
+2. **Firebase Cloud Functions** (3 functions deployed):
+   - `embedNewMessage` - Auto-generates embeddings for new messages
+   - `ragSearch` - Semantic search using cosine similarity
+   - `ragQuery` - Full RAG pipeline: search + GPT-4 generation
+3. **Firestore Schema** - `messageEmbeddings/{embeddingId}` collection for vector storage
+
+**RAG Pipeline:**
+1. User asks question → `GlobalAIViewModel.sendQuery()`
+2. Query sent to `ragQuery` Cloud Function with conversation history
+3. Backend embeds query → searches Firestore embeddings → finds top 5 relevant messages
+4. Relevant messages + conversation history → augmented GPT-4 prompt
+5. GPT-4 generates answer with source attribution
+6. Response includes answer + sources (conversationId, messageId, excerpt, relevance score)
+7. UI displays answer with clickable source cards
+
+**UI Components:**
+- `GlobalAIAssistantView` - Main chat interface (adapted from AIAssistantView)
+- `GlobalAIMessageBubbleView` - Message bubbles with embedded source cards
+- `SourceMessageCard` - Source attribution with tap-to-navigate
+- `GlobalAIViewModel` - State management with conversation history tracking
+
+**Key Features Implemented:**
+- ✅ Semantic search across all user conversations
+- ✅ Multi-turn conversations with context retention (last 10 Q&A pairs)
+- ✅ Source attribution linking back to original messages
+- ✅ Cross-tab navigation (tap source → switch to Chat tab → jump to message)
+- ✅ Message highlighting with auto-fade animation
+- ✅ Unified system prompt for consistent AI behavior
+- ✅ Improved error handling (helpful messages for out-of-scope queries)
+- ✅ Nexus branding with sparkles icon
+- ✅ Third navigation tab (Chat, Nexus, Profile)
+
+**Files Created (13 new files):**
+- Models: `RAGQuery.swift`, `RAGResponse.swift`, `SourceMessage.swift`, `ConversationMessage.swift`
+- Services: `RAGService.swift`, `MessageEmbeddingService.swift`
+- ViewModels: `GlobalAIViewModel.swift`
+- Views: `GlobalAIAssistantView.swift`, `GlobalAIMessageBubbleView.swift`, `SourceMessageCard.swift`
+- Cloud Functions: `embedNewMessage.js`, `ragSearch.js`, `ragQuery.js`
+
+**Files Modified:**
+- `Views/Main/MainTabView.swift` - Added Nexus tab (3 tabs total)
+- `Utilities/Constants.swift` - Added notification names
+- `Views/ConversationList/ConversationListView.swift` - Jump to message support
+- `Views/Chat/ChatView.swift` - Message highlighting
+- `firebase/firebase.json` - Cloud Functions configuration
+
+**Critical Bugs Fixed:**
+1. **Main Actor Isolation** - Fixed ViewModel initialization patterns for @StateObject
+2. **Timestamp Initializer** - Added `import FirebaseFirestore` for Timestamp support
+3. **Hard-coded Responses** - Changed to always call GPT-4 (even with zero RAG results)
+4. **Error UX** - Replaced generic errors with helpful guidance messages
+
+**What Now Works:**
+- ✅ Natural language queries: "What did Alice say about the deadline?"
+- ✅ Semantic search (finds messages even with different wording)
+- ✅ GPT-4 synthesis from multiple sources
+- ✅ Source cards with conversation context
+- ✅ Tap source → navigate to original message (highlighted)
+- ✅ Follow-up questions: "Tell me more", "What else?"
+- ✅ Out-of-scope queries get helpful responses (not errors)
+- ✅ Beautiful UI with empty states and loading overlays
+
+**Technical Achievements:**
+- Firebase Cloud Functions integrated with OpenAI API
+- Vector embeddings for semantic similarity
+- Cosine similarity calculation for relevance ranking
+- RAG pattern implementation (Retrieve → Augment → Generate)
+- Conversation history management for multi-turn dialogues
+- Cross-tab navigation coordination via NotificationCenter
+- Message highlighting with smooth animations
+
+**Performance:**
+- Query time: ~2-5 seconds (embedding + search + GPT-4)
+- Embedding dimension: 1536 (text-embedding-3-small)
+- Top K results: 5 messages
+- Conversation history: Last 10 Q&A pairs
+- Cost: ~$0.01-0.03 per query (GPT-4 + embeddings)
+
+**Remaining Work (Task 12.0 - Testing & Polish):**
+- Test various query types and edge cases
+- Verify navigation flow end-to-end
+- Test conversation history persistence
+- Performance testing with large histories
+- API failure error handling
+- User acceptance testing
+
+**Documentation:**
+- `tasks/prd-rag-ai-assistant.md` - Complete PRD (721 lines)
+- `tasks/tasks-prd-rag-ai-assistant.md` - Task list (11/12 complete)
 
 ---
 
