@@ -29,7 +29,7 @@ class AuthService {
         // Create user profile in Firestore
         let user = User(
             id: authResult.user.uid,
-            googleId: "", // Empty for email/password auth
+            googleId: nil, // No Google ID for email/password auth
             email: email,
             displayName: displayName,
             profileImageUrl: nil,

@@ -18,8 +18,8 @@ final class LocalUser {
     /// Unique identifier (Firebase Auth UID)
     @Attribute(.unique) var id: String
     
-    /// Google account ID
-    var googleId: String
+    /// Google account ID (optional for backward compatibility)
+    var googleId: String?
     
     // MARK: - Profile
     
@@ -48,11 +48,11 @@ final class LocalUser {
     
     // MARK: - Presence
     
-    /// Whether user is currently online
-    var isOnline: Bool
+    /// Whether user is currently online (optional for backward compatibility)
+    var isOnline: Bool?
     
-    /// Last time user was seen online
-    var lastSeen: Date
+    /// Last time user was seen online (optional for backward compatibility)
+    var lastSeen: Date?
     
     // MARK: - Sync State
     
@@ -92,7 +92,7 @@ final class LocalUser {
     
     init(
         id: String,
-        googleId: String,
+        googleId: String? = nil,
         email: String,
         displayName: String,
         profileImageUrl: String?,
@@ -100,8 +100,8 @@ final class LocalUser {
         cachedInitials: String? = nil,
         cachedImagePath: String? = nil,
         cachedImageLastAccess: Date? = nil,
-        isOnline: Bool,
-        lastSeen: Date,
+        isOnline: Bool? = nil,
+        lastSeen: Date? = nil,
         syncStatus: SyncStatus = .synced,
         lastSyncAttempt: Date? = nil,
         syncRetryCount: Int = 0,
@@ -139,8 +139,8 @@ final class LocalUser {
             displayName: displayName,
             profileImageUrl: profileImageUrl,
             avatarColorHex: avatarColorHex,
-            isOnline: isOnline,
-            lastSeen: lastSeen,
+            isOnline: isOnline ?? false,  // Provide default
+            lastSeen: lastSeen ?? Date(),  // Provide default
             createdAt: createdAt
         )
     }

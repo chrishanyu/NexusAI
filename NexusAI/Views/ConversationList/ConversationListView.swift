@@ -78,9 +78,7 @@ struct ConversationListView: View {
                 prompt: "Search conversations"
             )
             .refreshable {
-                Task { @MainActor in
-                    viewModel.refresh()
-                }
+                await viewModel.refresh()
             }
             .sheet(isPresented: $showingNewConversation) {
                 NewConversationView { conversationId in

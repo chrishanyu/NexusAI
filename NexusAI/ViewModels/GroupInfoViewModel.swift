@@ -119,9 +119,11 @@ class GroupInfoViewModel: ObservableObject {
                 return false
             }
             
-            // Then by online status
-            if user1.isOnline != user2.isOnline {
-                return user1.isOnline
+            // Then by online status (treat nil as false)
+            let user1Online = user1.isOnline ?? false
+            let user2Online = user2.isOnline ?? false
+            if user1Online != user2Online {
+                return user1Online
             }
             
             // Then alphabetically by display name

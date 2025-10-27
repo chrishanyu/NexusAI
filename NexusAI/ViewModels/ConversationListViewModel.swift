@@ -163,11 +163,15 @@ class ConversationListViewModel: ObservableObject {
     
     // MARK: - Public Methods
     
-    /// Manually refresh conversations
-    func refresh() {
-        // Listener already handles real-time updates
-        // This method can be used for pull-to-refresh if needed
-        listenToConversations()
+    /// Manually refresh conversations (triggered by pull-to-refresh)
+    func refresh() async {
+        // If using local-first sync, trigger a force sync from cloud
+        if Constants.FeatureFlags.isLocalFirstSyncEnabled {
+            await SyncEngine.shared.forceSyncFromCloud()
+        } else {
+            // Legacy mode: just restart listeners
+            listenToConversations()
+        }
     }
     
     /// Update unread count for a specific conversation (optimistic update)

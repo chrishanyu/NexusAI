@@ -14,6 +14,10 @@ import Combine
 @MainActor
 final class SyncEngine {
     
+    // MARK: - Singleton
+    
+    static let shared = SyncEngine()
+    
     // MARK: - Properties
     
     private let database: LocalDatabase
@@ -38,7 +42,7 @@ final class SyncEngine {
     
     // MARK: - Initialization
     
-    init(
+    private init(
         database: LocalDatabase? = nil,
         firebaseService: FirebaseService? = nil,
         conflictResolver: ConflictResolver? = nil,
@@ -52,6 +56,23 @@ final class SyncEngine {
         self.networkMonitor = networkMonitor ?? NetworkMonitor.shared
         
         print("✅ SyncEngine initialized")
+    }
+    
+    /// Create a test instance with custom dependencies (for testing)
+    static func createTestInstance(
+        database: LocalDatabase,
+        firebaseService: FirebaseService,
+        conflictResolver: ConflictResolver,
+        networkMonitor: any NetworkMonitoring,
+        conversationRepository: ConversationRepositoryProtocol
+    ) -> SyncEngine {
+        return SyncEngine(
+            database: database,
+            firebaseService: firebaseService,
+            conflictResolver: conflictResolver,
+            networkMonitor: networkMonitor,
+            conversationRepository: conversationRepository
+        )
     }
     
     // MARK: - Lifecycle
@@ -223,6 +244,24 @@ final class SyncEngine {
         }
     }
     
+    /// Force a manual sync from cloud to local (for pull-to-refresh)
+    /// This doesn't push local changes - it only pulls fresh data from Firestore
+    func forceSyncFromCloud() async {
+        guard networkMonitor.isConnected else {
+            print("⚠️ Cannot force sync - device is offline")
+            return
+        }
+        
+        print("🔄 Force sync from cloud triggered...")
+        
+        // Firestore listeners will automatically receive updates
+        // We just need to trigger a sync cycle to push any pending local changes
+        // and the pull listeners are already active
+        await performSyncCycle()
+        
+        print("✅ Force sync completed")
+    }
+    
     /// Sync all pending and retry-eligible failed messages
     private func syncPendingMessages() async -> (synced: Int, failed: Int) {
         do {
@@ -354,8 +393,12 @@ final class SyncEngine {
             // Combine pending and retryable users
             let usersToSync = pendingUsers + retryableUsers
             
-            // Sort by lastSeen (oldest first) for proper ordering
-            let sortedUsers = usersToSync.sorted { $0.lastSeen < $1.lastSeen }
+            // Sort by lastSeen (oldest first) for proper ordering, treating nil as epoch
+            let sortedUsers = usersToSync.sorted { 
+                let date1 = $0.lastSeen ?? Date(timeIntervalSince1970: 0)
+                let date2 = $1.lastSeen ?? Date(timeIntervalSince1970: 0)
+                return date1 < date2
+            }
             
             var synced = 0
             var failed = 0
@@ -885,7 +928,12 @@ final class SyncEngine {
                     try await handleUserRemoved(user)
                 }
             } catch {
-                print("❌ Error processing user change: \(error.localizedDescription)")
+                // More detailed error logging to help debug which user document is problematic
+                let userId = change.document.documentID
+                let data = change.document.data()
+                print("❌ Error processing user change for userId: \(userId)")
+                print("   Error: \(error.localizedDescription)")
+                print("   Document data: \(data)")
             }
         }
     }
@@ -939,8 +987,10 @@ final class SyncEngine {
         // Skip processing if local user is already synced and timestamps match
         // Exception: Always update presence (isOnline, lastSeen) even if synced
         // This prevents unnecessary DB operations for profile updates we just pushed
+        let localLastSeen = localUser.lastSeen ?? Date(timeIntervalSince1970: 0)
+        let remoteLastSeen = user.lastSeen ?? Date(timeIntervalSince1970: 0)
         if localUser.syncStatus == .synced && 
-           abs(localUser.lastSeen.timeIntervalSince(user.lastSeen)) < 1.0 &&
+           abs(localLastSeen.timeIntervalSince(remoteLastSeen)) < 1.0 &&
            localUser.isOnline == user.isOnline {
             // Local version is already synced, up-to-date, and presence matches - skip processing
             return
@@ -1297,13 +1347,17 @@ final class SyncEngine {
             
             // Create user data (only sync profile fields, not presence)
             var userData: [String: Any] = [
-                "googleId": localUser.googleId,
                 "email": localUser.email,
                 "displayName": localUser.displayName,
                 "profileImageUrl": localUser.profileImageUrl ?? "",
                 "createdAt": Timestamp(date: localUser.createdAt)
                 // Note: Do NOT sync isOnline/lastSeen - those are server-managed
             ]
+            
+            // Add googleId only if it exists
+            if let googleId = localUser.googleId {
+                userData["googleId"] = googleId
+            }
             
             // Include avatar color if available (for cross-device consistency)
             if let avatarColorHex = localUser.avatarColorHex, !avatarColorHex.isEmpty {

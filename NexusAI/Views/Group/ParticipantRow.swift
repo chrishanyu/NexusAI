@@ -26,7 +26,7 @@ struct ParticipantRow: View {
                 displayName: user.displayName,
                 size: 40
             )
-            .onlineStatusIndicator(isOnline: user.isOnline)
+            .onlineStatusIndicator(isOnline: user.isOnline ?? false)
             
             // User info
             VStack(alignment: .leading, spacing: 4) {
@@ -55,7 +55,7 @@ struct ParticipantRow: View {
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
-        .accessibilityLabel("\(user.displayName)\(isCurrentUser ? ", You" : ""), \(user.isOnline ? "online" : "offline")")
+        .accessibilityLabel("\(user.displayName)\(isCurrentUser ? ", You" : ""), \((user.isOnline ?? false) ? "online" : "offline")")
     }
 }
 

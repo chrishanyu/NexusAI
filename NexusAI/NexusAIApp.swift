@@ -43,8 +43,7 @@ struct NexusApp: App {
             
             // Initialize and start sync engine on the main actor
             Task { @MainActor in
-                let engine = SyncEngine()
-                engine.start()
+                SyncEngine.shared.start()
                 print("✅ SyncEngine initialized and started")
             }
         } else {
